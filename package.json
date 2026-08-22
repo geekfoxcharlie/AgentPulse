@@ -1,0 +1,28 @@
+{
+  "name": "agentpulse",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A local API field manual for agents.",
+  "type": "module",
+  "bin": {
+    "agentpulse": "dist/cli.js"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json && node scripts/copy-assets.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "npm run build && node --test dist/test/*.test.js",
+    "start": "npm run build && node dist/cli.js",
+    "web": "npm run build && node dist/cli.js web"
+  },
+  "dependencies": {
+    "ajv": "^8.17.1",
+    "yaml": "^2.8.1"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^5.9.0"
+  }
+}

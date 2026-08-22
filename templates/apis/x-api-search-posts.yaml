@@ -1,0 +1,35 @@
+schemaVersion: 1
+kind: api-template
+id: x-api-search-posts
+name: X API Search Posts
+group: search
+description: Official X API v2 search for structured posts, authors, timestamps, and public engagement data.
+enabled: true
+service:
+  baseUrl: https://api.x.com
+  docsUrl: https://docs.x.com/x-api/posts/search/introduction
+credential:
+  type: environment
+  defaultName: X_API_BEARER_TOKEN
+  placement:
+    type: bearer
+probe:
+  method: GET
+  url: https://api.x.com/2/tweets/search/recent
+  query:
+    query: OpenAI -is:retweet
+    max_results: 10
+    tweet.fields: created_at
+  expectedStatus: [200]
+  assertions:
+    - path: meta
+      exists: true
+  timeoutMs: 10000
+usage:
+  notes: Use for first-party X post retrieval, not general web search. Recent search covers the last 7 days; each returned post consumes X API read credits, so keep result counts and health checks minimal.
+  example: |
+    curl -s --get "https://api.x.com/2/tweets/search/recent" \
+      -H "Authorization: Bearer $X_API_BEARER_TOKEN" \
+      --data-urlencode "query=OpenAI -is:retweet" \
+      --data-urlencode "max_results=10" \
+      --data-urlencode "tweet.fields=created_at,author_id,public_metrics"

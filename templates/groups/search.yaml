@@ -1,0 +1,6 @@
+schemaVersion: 1
+kind: group-template
+id: search
+name: Search
+description: Curated independent web, X post, and Google SERP APIs for agent research.
+order: 10

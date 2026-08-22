@@ -1,0 +1,38 @@
+schemaVersion: 1
+kind: api-template
+id: tavily-search
+name: Tavily Search
+group: search
+description: Search API designed for agent research, with focused snippets and optional answers.
+enabled: true
+service:
+  baseUrl: https://api.tavily.com
+  docsUrl: https://docs.tavily.com/documentation/api-reference/endpoint/search
+credential:
+  type: environment
+  defaultName: TAVILY_API_KEY
+  placement:
+    type: bearer
+probe:
+  method: POST
+  url: https://api.tavily.com/search
+  headers:
+    Content-Type: application/json
+  body:
+    query: OpenAI
+    search_depth: basic
+    max_results: 1
+    include_answer: false
+    include_raw_content: false
+  expectedStatus: [200]
+  assertions:
+    - path: results
+      exists: true
+  timeoutMs: 10000
+usage:
+  notes: Use for agent-oriented web research when concise, relevant snippets are more useful than raw SERP data.
+  example: |
+    curl -s https://api.tavily.com/search \
+      -H "Authorization: Bearer $TAVILY_API_KEY" \
+      -H "Content-Type: application/json" \
+      -d '{"query":"latest OpenAI research","search_depth":"basic","max_results":5,"include_answer":false}'

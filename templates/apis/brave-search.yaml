@@ -1,0 +1,37 @@
+schemaVersion: 1
+kind: api-template
+id: brave-search
+name: Brave Search
+group: search
+description: Independent web index with conventional search results and search operators; check local health before relying on it.
+enabled: true
+service:
+  baseUrl: https://api.search.brave.com
+  docsUrl: https://api-dashboard.search.brave.com/api-reference/web/search/get
+credential:
+  type: environment
+  defaultName: BRAVE_SEARCH_API_KEY
+  placement:
+    type: header
+    name: X-Subscription-Token
+probe:
+  method: GET
+  url: https://api.search.brave.com/res/v1/web/search
+  headers:
+    Accept: application/json
+  query:
+    q: OpenAI
+    count: 1
+  expectedStatus: [200]
+  assertions:
+    - path: query
+      exists: true
+  timeoutMs: 10000
+usage:
+  notes: Use as an independent-index alternative for general web search, operators, and freshness. Check this machine's cached health first before relying on it.
+  example: |
+    curl -s --get "https://api.search.brave.com/res/v1/web/search" \
+      -H "Accept: application/json" \
+      -H "X-Subscription-Token: $BRAVE_SEARCH_API_KEY" \
+      --data-urlencode "q=latest OpenAI research" \
+      --data-urlencode "count=5"

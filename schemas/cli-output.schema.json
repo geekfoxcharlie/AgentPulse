@@ -1,0 +1,26 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://agentpulse.local/schemas/cli-output.schema.json",
+  "title": "AgentPulse CLI JSON envelope",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "command", "generatedAt", "data", "errors"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "command": { "type": "string", "minLength": 1 },
+    "generatedAt": { "type": "string", "minLength": 1 },
+    "data": {},
+    "errors": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["code", "message"],
+        "properties": {
+          "code": { "type": "string" },
+          "message": { "type": "string" },
+          "details": {}
+        }
+      }
+    }
+  }
+}

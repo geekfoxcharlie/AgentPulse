@@ -1,0 +1,35 @@
+schemaVersion: 1
+kind: api-template
+id: firecrawl-search
+name: Firecrawl Search
+group: search
+description: Web search with optional clean page-content extraction in the same API surface.
+enabled: true
+service:
+  baseUrl: https://api.firecrawl.dev
+  docsUrl: https://docs.firecrawl.dev/features/search
+credential:
+  type: environment
+  defaultName: FIRECRAWL_API_KEY
+  placement:
+    type: bearer
+probe:
+  method: POST
+  url: https://api.firecrawl.dev/v2/search
+  headers:
+    Content-Type: application/json
+  body:
+    query: OpenAI
+    limit: 1
+  expectedStatus: [200]
+  assertions:
+    - path: success
+      equals: true
+  timeoutMs: 10000
+usage:
+  notes: Use when an Agent needs web discovery and may need clean Markdown or HTML from the discovered pages. Keep scrapeOptions off unless page content is required because extraction has additional credit cost.
+  example: |
+    curl -s https://api.firecrawl.dev/v2/search \
+      -H "Authorization: Bearer $FIRECRAWL_API_KEY" \
+      -H "Content-Type: application/json" \
+      -d '{"query":"latest OpenAI research","limit":5}'

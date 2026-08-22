@@ -1,0 +1,36 @@
+schemaVersion: 1
+kind: api-template
+id: serper-google-search
+name: Serper Google Search
+group: search
+description: Structured, real-time Google search-engine result data with location and language controls.
+enabled: true
+service:
+  baseUrl: https://google.serper.dev
+  docsUrl: https://serper.dev
+credential:
+  type: environment
+  defaultName: SERPER_API_KEY
+  placement:
+    type: header
+    name: X-API-KEY
+probe:
+  method: POST
+  url: https://google.serper.dev/search
+  headers:
+    Content-Type: application/json
+  body:
+    q: OpenAI
+    num: 1
+  expectedStatus: [200]
+  assertions:
+    - path: searchParameters
+      exists: true
+  timeoutMs: 10000
+usage:
+  notes: Use when an Agent specifically needs Google SERP data, including organic results, news, maps, Scholar, or location-sensitive results.
+  example: |
+    curl -s https://google.serper.dev/search \
+      -H "X-API-KEY: $SERPER_API_KEY" \
+      -H "Content-Type: application/json" \
+      -d '{"q":"latest OpenAI research","num":5}'

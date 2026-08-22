@@ -1,0 +1,37 @@
+schemaVersion: 1
+kind: api-template
+id: exa-search
+name: Exa Search
+group: search
+description: Semantic web search with optional page content and research-oriented search modes.
+enabled: true
+service:
+  baseUrl: https://api.exa.ai
+  docsUrl: https://exa.ai/docs/reference/search
+credential:
+  type: environment
+  defaultName: EXA_API_KEY
+  placement:
+    type: header
+    name: x-api-key
+probe:
+  method: POST
+  url: https://api.exa.ai/search
+  headers:
+    Content-Type: application/json
+  body:
+    query: OpenAI
+    type: instant
+    numResults: 1
+  expectedStatus: [200]
+  assertions:
+    - path: results
+      exists: true
+  timeoutMs: 10000
+usage:
+  notes: Use for semantic retrieval, source discovery, and searches that may later need extracted page content.
+  example: |
+    curl -s https://api.exa.ai/search \
+      -H "x-api-key: $EXA_API_KEY" \
+      -H "Content-Type: application/json" \
+      -d '{"query":"latest OpenAI research","type":"auto","numResults":5}'

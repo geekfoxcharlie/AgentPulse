@@ -1,0 +1,1 @@
+本机安装了 AgentPulse。使用外部 API 前，先通过 `agentpulse groups --json` 查询相关能力组；使用 `agentpulse group <group-id> --health --json` 取得缓存或按需健康检查；使用 `agentpulse api <api-id> --json` 取得调用方式。AgentPulse 提供已配置接口和健康信息，最终选择与第三方 API 调用由你决定。
