@@ -25,11 +25,26 @@ agentpulse web
 
 `npm link` exposes the current build as the local `agentpulse` command. A person or trusted agent writes the actual secret to its registered location; AgentPulse records only the variable name and location, never accepts or displays the secret value.
 
+## Install the agent context
+
+After installing AgentPulse, generate a reusable context file for Codex or another local agent:
+
+```bash
+mkdir -p ~/.codex
+agentpulse context > ~/.codex/AgentPulse.md
+```
+
+Reference the file from Codex Custom Instructions using its absolute path, for example:
+
+```text
+@/Users/your-name/.codex/AgentPulse.md
+```
+
 ## Documentation
 
 - [Product requirements](docs/REQUIREMENTS.md): product goals, enduring requirements, trust model, and non-goals.
 - [System architecture](docs/ARCHITECTURE.md): system boundary, components, data ownership, and runtime flows.
-- [Agent context prompt](guides/agent-context.md): the shortest discovery prompt to inject into local agents.
+- [Agent context](guides/agent-context.md): installable discovery instructions and usage examples for local agents.
 - [0.1 MVP Spec](.kiro/specs/0.1-mvp/requirements.md): current search catalog, design, and tasks.
 
 The [system architecture](docs/ARCHITECTURE.md) defines the single-source-of-truth and update rules for documentation. The README is only the project entry point; it does not duplicate the full requirements or design.
