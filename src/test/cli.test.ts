@@ -24,7 +24,7 @@ test("CLI exposes templates, materializes an API, and returns a structured missi
 
     const add = await run(
       process.execPath,
-      [cliPath, "api", "add", "--template", "brave-search", "--configured-at", "~/.config/agentpulse/secrets.zsh", "--json"],
+      [cliPath, "api", "add", "--template", "brave-search", "--configured-at", "~/.zshenv", "--json"],
       { env }
     );
     const addEnvelope = JSON.parse(add.stdout) as { data: { id: string } };
@@ -45,5 +45,39 @@ test("CLI exposes templates, materializes an API, and returns a structured missi
         return envelope.errors?.[0]?.code === "not_found";
       }
     );
+  });
+});
+
+test("CLI exposes and configures the Cloudflare GPT Image 2 template", async () => {
+  await withTempPaths(async (paths) => {
+    const env: NodeJS.ProcessEnv = { ...process.env, AGENTPULSE_CONFIG_DIR: paths.configDir, AGENTPULSE_STATE_DIR: paths.stateDir };
+    delete env.CLOUDFLARE_ACCOUNT_ID;
+    delete env.CLOUDFLARE_API_TOKEN;
+
+    const templates = await run(process.execPath, [cliPath, "templates", "--group", "image-generation", "--json"], { env });
+    const templateEnvelope = JSON.parse(templates.stdout) as {
+      data: { groups: Array<{ id: string }>; templates: Array<{ id: string; defaultCredentialEnv: string; requiredEnvironment: string[] }> };
+    };
+    assert.deepEqual(templateEnvelope.data.groups.map((group) => group.id), ["image-generation"]);
+    const template = templateEnvelope.data.templates[0];
+    assert.equal(template?.id, "cloudflare-gpt-image-2");
+    assert.equal(template?.defaultCredentialEnv, "CLOUDFLARE_API_TOKEN");
+    assert.deepEqual(template?.requiredEnvironment, ["CLOUDFLARE_ACCOUNT_ID"]);
+
+    await run(
+      process.execPath,
+      [cliPath, "api", "add", "--template", "cloudflare-gpt-image-2", "--configured-at", "~/.zshenv", "--json"],
+      { env }
+    );
+
+    const health = await run(process.execPath, [cliPath, "group", "image-generation", "--health", "--json"], { env });
+    const healthEnvelope = JSON.parse(health.stdout) as {
+      data: { apis: Array<{ environment: Array<{ name: string; availableToProcess: boolean }>; health: { status: string; error?: { message: string } } }> };
+    };
+    assert.equal(healthEnvelope.data.apis[0]?.health.status, "misconfigured");
+    assert.match(healthEnvelope.data.apis[0]?.health.error?.message ?? "", /CLOUDFLARE_API_TOKEN.*CLOUDFLARE_ACCOUNT_ID/);
+    assert.deepEqual(healthEnvelope.data.apis[0]?.environment, [
+      { name: "CLOUDFLARE_ACCOUNT_ID", configuredAt: "~/.zshenv", description: "Cloudflare account ID used in the AI Gateway request path.", availableToProcess: false }
+    ]);
   });
 });

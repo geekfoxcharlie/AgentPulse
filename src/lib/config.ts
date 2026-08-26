@@ -9,6 +9,7 @@ import {
   type ApiDefinition,
   type ConfigPaths,
   type CredentialPlacement,
+  type EnvironmentRequirement,
   type GroupDefinition,
   type HttpMethod,
   type ProbeAssertion,
@@ -131,7 +132,8 @@ export function validateApi(value: unknown, source = "api"): ApiDefinition {
   const input = asRecord(value, source);
   assertSchemaVersion(input, source);
   assertLiteral(input, "kind", "api", source);
-  return {
+  const environment = optionalEnvironmentRequirements(input, "environment", source);
+  const api: ApiDefinition = {
     schemaVersion: SCHEMA_VERSION,
     kind: "api",
     id: requiredId(input, "id", source),
@@ -144,6 +146,9 @@ export function validateApi(value: unknown, source = "api"): ApiDefinition {
     probe: validateProbe(input.probe, `${source}.probe`),
     usage: validateUsage(input.usage, `${source}.usage`)
   };
+  if (environment) api.environment = environment;
+  validateEnvironmentPlaceholders(api, source);
+  return api;
 }
 
 export function validateService(value: unknown, source: string): ApiDefinition["service"] {
@@ -264,11 +269,45 @@ function optionalNumber(input: UnknownRecord, key: string, source: string): numb
 function requiredUrl(input: UnknownRecord, key: string, source: string): string {
   const value = requiredString(input, key, source);
   try {
-    const url = new URL(value);
+    const url = new URL(value.replaceAll(/{{[A-Z][A-Z0-9_]*}}/g, "environment-value"));
     if (url.protocol !== "https:" && url.protocol !== "http:") throw new Error("Unsupported protocol.");
     return value;
   } catch {
     throw invalid(`${source}.${key}`, "must be a valid HTTP(S) URL.");
+  }
+}
+
+function optionalEnvironmentRequirements(input: UnknownRecord, key: string, source: string): EnvironmentRequirement[] | undefined {
+  const value = input[key];
+  if (value === undefined) return undefined;
+  if (!Array.isArray(value) || value.length === 0) throw invalid(`${source}.${key}`, "must be a non-empty array.");
+
+  const requirements = value.map((item, index) => {
+    const requirement = asRecord(item, `${source}.${key}[${index}]`);
+    const result: EnvironmentRequirement = {
+      name: requiredEnvName(requirement, "name", `${source}.${key}[${index}]`),
+      configuredAt: requiredString(requirement, "configuredAt", `${source}.${key}[${index}]`),
+      description: requiredString(requirement, "description", `${source}.${key}[${index}]`)
+    };
+    if (requirement.placement !== undefined) result.placement = validatePlacement(requirement.placement, `${source}.${key}[${index}].placement`);
+    return result;
+  });
+
+  const names = new Set<string>();
+  for (const requirement of requirements) {
+    if (names.has(requirement.name)) throw invalid(`${source}.${key}`, `must not repeat environment variable ${requirement.name}.`);
+    names.add(requirement.name);
+  }
+  return requirements;
+}
+
+function validateEnvironmentPlaceholders(api: ApiDefinition, source: string): void {
+  const placeholderNames = [...api.probe.url.matchAll(/{{([A-Z][A-Z0-9_]*)}}/g)].map((match) => match[1] ?? "");
+  const declaredNames = new Set(api.environment?.map((requirement) => requirement.name) ?? []);
+  for (const name of placeholderNames) {
+    if (!declaredNames.has(name)) {
+      throw invalid(`${source}.probe.url`, `references undeclared environment variable ${name}.`);
+    }
   }
 }
 

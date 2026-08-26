@@ -16,6 +16,13 @@ export interface ApiView {
     placement: ApiDefinition["credential"]["placement"];
     availableToProcess: boolean;
   };
+  environment: Array<{
+    name: string;
+    configuredAt: string;
+    description: string;
+    placement?: ApiDefinition["credential"]["placement"];
+    availableToProcess: boolean;
+  }>;
   probe: {
     method: ApiDefinition["probe"]["method"];
     url: string;
@@ -42,6 +49,10 @@ export async function apiView(api: ApiDefinition, paths: ConfigPaths, health?: H
       placement: api.credential.placement,
       availableToProcess: Boolean(process.env[api.credential.name])
     },
+    environment: (api.environment ?? []).map((requirement) => ({
+      ...requirement,
+      availableToProcess: Boolean(process.env[requirement.name])
+    })),
     probe: {
       method: api.probe.method,
       url: api.probe.url,

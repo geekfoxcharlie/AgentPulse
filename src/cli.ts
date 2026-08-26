@@ -41,6 +41,7 @@ async function main(): Promise<void> {
         group: api.group,
         description: api.description,
         defaultCredentialEnv: api.credential.defaultName,
+        requiredEnvironment: api.environment?.map((requirement) => requirement.defaultName) ?? [],
         docsUrl: api.service.docsUrl,
         probe: { method: api.probe.method, url: api.probe.url }
       }));
@@ -182,8 +183,8 @@ function renderHuman(command: string, data: unknown): string {
     return groups.length === 0 ? "No configured groups. Run `agentpulse templates --group search`." : groups.map((group) => `${group.id}\t${group.name}\t${group.apiCount} APIs\t${group.health.healthy} healthy / ${group.health.unhealthy} unhealthy / ${group.health.misconfigured} needs configuration`).join("\n");
   }
   if (command === "templates") {
-    const result = data as { templates: Array<{ id: string; name: string; group: string; defaultCredentialEnv: string }> };
-    return result.templates.map((template) => `${template.id}\t${template.name}\t${template.group}\t${template.defaultCredentialEnv}`).join("\n");
+    const result = data as { templates: Array<{ id: string; name: string; group: string; defaultCredentialEnv: string; requiredEnvironment: string[] }> };
+    return result.templates.map((template) => `${template.id}\t${template.name}\t${template.group}\t${[template.defaultCredentialEnv, ...template.requiredEnvironment].join(", ")}`).join("\n");
   }
   if (command === "group") {
     const result = data as Awaited<ReturnType<typeof groupView>>;
@@ -191,7 +192,8 @@ function renderHuman(command: string, data: unknown): string {
   }
   if (command === "api") {
     const api = data as Awaited<ReturnType<typeof apiView>>;
-    return `${api.name} (${api.id})\n${api.description}\nCredential: ${api.credential.name} at ${api.credential.configuredAt}\nHealth: ${api.health.status}\nDocs: ${api.service.docsUrl}\n\n${api.usage.example}`;
+    const environment = api.environment.length === 0 ? "" : `\nRequired environment: ${api.environment.map((requirement) => `${requirement.name} at ${requirement.configuredAt}`).join(", ")}`;
+    return `${api.name} (${api.id})\n${api.description}\nCredential: ${api.credential.name} at ${api.credential.configuredAt}${environment}\nHealth: ${api.health.status}\nDocs: ${api.service.docsUrl}\n\n${api.usage.example}`;
   }
   if (command === "validate") return `Configuration valid: ${JSON.stringify(data)}`;
   if (command.startsWith("api.") || command.startsWith("group.")) return `Updated: ${(data as { id: string }).id}`;
@@ -211,7 +213,7 @@ Query
 Configure
   agentpulse group add --file <path>
   agentpulse group update <group-id> --file <path>
-  agentpulse api add --template <template-id> --configured-at <path> [--credential-env <name>]
+  agentpulse api add --template <template-id> --configured-at ~/.zshenv [--credential-env <name>]
   agentpulse api add --file <path>
   agentpulse api update <api-id> --file <path>
   agentpulse api enable|disable <api-id>

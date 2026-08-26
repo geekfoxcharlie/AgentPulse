@@ -1,4 +1,4 @@
-import { cp, mkdir, rm } from "node:fs/promises";
+import { chmod, cp, mkdir, rm } from "node:fs/promises";
 import { resolve } from "node:path";
 
 const assets = ["templates", "schemas", "guides"];
@@ -10,3 +10,5 @@ for (const asset of assets) {
   await rm(destination, { recursive: true, force: true });
   await cp(source, destination, { recursive: true });
 }
+
+await chmod(resolve("dist", "cli.js"), 0o755);

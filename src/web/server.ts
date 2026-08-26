@@ -111,6 +111,15 @@ function renderApi(api: Awaited<ReturnType<typeof groupView>>["apis"][number]): 
     ? `Checked ${formatDate(health.checkedAt)} · ${health.isExpired ? "Cache expired" : `Valid until ${formatDate(health.expiresAt ?? health.checkedAt)}`}`
     : health.status === "disabled" ? "Manually disabled; not checked" : "No health snapshot yet";
   const configState = api.credential.availableToProcess ? "Available to the current CLI process" : "Not available to the current CLI process";
+  const additionalEnvironment = api.environment.map((requirement) => {
+    const availability = requirement.availableToProcess ? "Available to the current CLI process" : "Not available to the current CLI process";
+    const placement = requirement.placement
+      ? requirement.placement.type === "bearer"
+        ? "Bearer header"
+        : `${requirement.placement.type} · ${requirement.placement.name}`
+      : "Endpoint requirement";
+    return `<div><dt>${escapeHtml(requirement.description)}</dt><dd><code>${escapeHtml(requirement.name)}</code> · ${escapeHtml(placement)} · ${escapeHtml(requirement.configuredAt)} · ${escapeHtml(availability)}</dd></div>`;
+  }).join("");
 
   return `<article class="api-card">
     <div class="api-main">
@@ -130,6 +139,7 @@ function renderApi(api: Awaited<ReturnType<typeof groupView>>["apis"][number]): 
           <div><dt>Configured at</dt><dd><code>${escapeHtml(api.credential.configuredAt)}</code></dd></div>
           <div><dt>Authentication</dt><dd>${escapeHtml(placement)}</dd></div>
           <div><dt>Current process</dt><dd>${escapeHtml(configState)}</dd></div>
+          ${additionalEnvironment}
           <div><dt>Probe endpoint</dt><dd><code>${escapeHtml(api.probe.url)}</code></dd></div>
         </dl>
         <div class="usage"><p>${escapeHtml(api.usage.notes)}</p><pre><code>${escapeHtml(api.usage.example)}</code></pre><a href="${escapeHtml(api.service.docsUrl)}" rel="noreferrer" target="_blank">Official documentation ↗</a></div>
@@ -141,10 +151,11 @@ function renderApi(api: Awaited<ReturnType<typeof groupView>>["apis"][number]): 
 function renderEmptyState(paths: ConfigPaths): string {
   return `<section class="empty-state">
     <p class="eyebrow">No APIs registered</p>
-    <h2>Add a search tool to the index first.</h2>
-    <p>Built-in templates are available for Exa, Firecrawl Search, Tavily, X API Search Posts, Serper, and Brave Search. They appear here after the CLI instantiates them.</p>
+    <h2>Add a local API to the index first.</h2>
+    <p>Built-in templates are available for six independent search APIs and Cloudflare GPT Image 2. They appear here after the CLI instantiates them.</p>
     <pre><code>agentpulse templates --group search
-agentpulse api add --template brave-search --configured-at ~/.config/agentpulse/secrets.zsh</code></pre>
+agentpulse templates --group image-generation
+agentpulse api add --template cloudflare-gpt-image-2 --configured-at ~/.zshenv</code></pre>
     <small>Current configuration directory: <code>${escapeHtml(paths.configDir)}</code></small>
   </section>`;
 }

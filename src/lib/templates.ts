@@ -2,7 +2,7 @@ import { readdir } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import { AppError } from "./errors.js";
-import { getApi, loadRegistry, parseConfigFile, upsertApi, upsertGroup, validateApi, validateGroup } from "./config.js";
+import { getApi, loadRegistry, parseConfigFile, upsertApi, upsertGroup, validateApi, validateGroup, validatePlacement } from "./config.js";
 import {
   SCHEMA_VERSION,
   type ApiDefinition,
@@ -10,6 +10,7 @@ import {
   type ConfigPaths,
   type GroupDefinition,
   type GroupTemplate,
+  type TemplateEnvironmentRequirement,
   type TemplateCredentialReference
 } from "./types.js";
 
@@ -54,8 +55,9 @@ export async function instantiateApiTemplate(
     await upsertGroup(paths, materializeGroup(groupTemplate));
   }
 
+  const { environment: templateEnvironment, ...templateDefinition } = template;
   const api: ApiDefinition = {
-    ...template,
+    ...templateDefinition,
     kind: "api",
     credential: {
       type: "environment",
@@ -64,6 +66,14 @@ export async function instantiateApiTemplate(
       placement: template.credential.placement
     }
   };
+  if (templateEnvironment) {
+    api.environment = templateEnvironment.map((requirement) => ({
+      name: requirement.defaultName,
+      configuredAt,
+      description: requirement.description,
+      ...(requirement.placement ? { placement: requirement.placement } : {})
+    }));
+  }
 
   return upsertApi(paths, validateApi(api, `template:${template.id}`));
 }
@@ -85,20 +95,33 @@ export function validateApiTemplate(value: unknown, source = "API template"): Ap
   const raw = asRecord(value, source);
   if (raw.kind !== "api-template") throw new AppError("invalid_template", `${source}.kind must equal api-template.`);
   const credential = validateTemplateCredential(raw.credential, `${source}.credential`);
+  const environment = validateTemplateEnvironment(raw.environment, `${source}.environment`);
+  const { environment: _templateEnvironment, ...rawWithoutEnvironment } = raw;
   const materialized = validateApi(
     {
-      ...raw,
+      ...rawWithoutEnvironment,
       kind: "api",
       credential: {
         type: "environment",
         name: credential.defaultName,
         configuredAt: "built-in-template",
         placement: credential.placement
-      }
+      },
+      ...(environment
+        ? {
+            environment: environment.map((requirement) => ({
+              name: requirement.defaultName,
+              configuredAt: "built-in-template",
+              description: requirement.description,
+              ...(requirement.placement ? { placement: requirement.placement } : {})
+            }))
+          }
+        : {})
     },
     source
   );
-  return { ...materialized, kind: "api-template", credential };
+  const { environment: _materializedEnvironment, ...templateDefinition } = materialized;
+  return environment ? { ...templateDefinition, kind: "api-template", credential, environment } : { ...templateDefinition, kind: "api-template", credential };
 }
 
 function materializeGroup(template: GroupTemplate): GroupDefinition {
@@ -126,6 +149,32 @@ function validateTemplateCredential(value: unknown, source: string): TemplateCre
     };
   }
   throw new AppError("invalid_template", `${source}.placement must be header, bearer, or query.`);
+}
+
+function validateTemplateEnvironment(value: unknown, source: string): TemplateEnvironmentRequirement[] | undefined {
+  if (value === undefined) return undefined;
+  if (!Array.isArray(value) || value.length === 0) throw new AppError("invalid_template", `${source} must be a non-empty array.`);
+
+  const requirements = value.map((item, index) => {
+    const raw = asRecord(item, `${source}[${index}]`);
+    const defaultName = raw.defaultName;
+    const description = raw.description;
+    if (typeof defaultName !== "string" || !/^[A-Z][A-Z0-9_]*$/.test(defaultName)) {
+      throw new AppError("invalid_template", `${source}[${index}].defaultName must be an uppercase environment variable name.`);
+    }
+    if (typeof description !== "string" || !description.trim()) {
+      throw new AppError("invalid_template", `${source}[${index}].description must be a non-empty string.`);
+    }
+    const placement = raw.placement === undefined ? undefined : validatePlacement(raw.placement, `${source}[${index}].placement`);
+    return placement ? { defaultName, description, placement } : { defaultName, description };
+  });
+
+  const names = new Set<string>();
+  for (const requirement of requirements) {
+    if (names.has(requirement.defaultName)) throw new AppError("invalid_template", `${source} must not repeat environment variable ${requirement.defaultName}.`);
+    names.add(requirement.defaultName);
+  }
+  return requirements;
 }
 
 async function readTemplateFiles(directory: string): Promise<Array<{ value: unknown; source: string }>> {

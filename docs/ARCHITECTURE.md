@@ -65,13 +65,7 @@ AgentPulse 的业务配置跨 Agent、跨工具和跨项目共享，因此运行
 └── health-cache.json      # 可丢弃并重新生成的健康状态
 ```
 
-真实密钥可以位于例如：
-
-```text
-~/.zshenv
-~/.config/agentpulse/secrets.zsh
-其他由 API 配置明确登记的位置
-```
+真实值由操作系统、Shell 或其他本机环境配置提供。当前默认位置为 `~/.zshenv`；`configuredAt` 仍可记录其他实际配置位置，便于后续排查。它不是 AgentPulse 会读取、source 或写入的文件路径。健康检查只读取当前 `agentpulse` 进程已经获得的环境变量。
 
 配置与 CLI JSON 的精确字段分别由根目录下的 JSON Schema 定义；共享核心通过这些 Schema 校验 YAML。缓存是内部可再生状态，不是公开数据契约。
 
@@ -96,6 +90,7 @@ API 条目由以下概念组成：
 - 分类：能力组 ID；
 - 服务信息：基础地址、文档地址；
 - 凭据引用：环境变量名、配置位置、注入方式；
+- 附加环境需求：变量名、配置位置和用途（例如账户 ID）；
 - 用法：适用场景、限制、可执行示例；
 - 探测：最小请求及成功条件。
 
@@ -105,11 +100,11 @@ API 配置只保存引用和说明，不保存凭据值。精确字段由 [`sche
 
 AgentPulse 可以随程序发布常见 API 的内置模板，以减少 Agent 重复填写公开且稳定的端点、认证方式、用法和最小探测定义。
 
-模板不是已配置 API，也不参与查询或健康检查。Agent 选择模板并补充环境变量名、凭据位置等本机信息后，CLI 必须把完整结果实例化为用户级 API 配置；从此运行时只读取该用户配置。
+模板不是已配置 API，也不参与查询或健康检查。Agent 选择模板并补充环境变量名、配置位置等本机信息后，CLI 必须把完整结果实例化为用户级 API 配置；从此运行时只读取该用户配置。该位置仅为元信息，CLI 不会 source 或修改它。
 
 因此，模板更新不能静默改变已有用户配置。需要同步上游变化时，必须由 Agent 发起显式更新并经过正常校验和缓存失效流程。
 
-内置 `search` 目录只收录可由 Agent 直接调用并返回机器可读结果的独立搜索 API。模型内建的服务端搜索工具不属于该目录；X 帖子搜索使用 X API 的直接端点。当前人工筛选的模板名称属于[产品需求](REQUIREMENTS.md#r11内置独立搜索目录)，而精确端点、凭据引用和最小探测属于各模板 YAML 的唯一事实来源。当前模板目录的增量与验收条件由唯一的 [0.1 MVP Spec](../.kiro/specs/0.1-mvp/requirements.md) 维护。
+内置 `search` 目录只收录可由 Agent 直接调用并返回机器可读结果的独立搜索 API。模型内建的服务端搜索工具不属于该目录；X 帖子搜索使用 X API 的直接端点。`image-generation` 目录提供通过 Cloudflare AI Gateway 调用的 GPT Image 2 模板。当前人工筛选的模板名称属于[产品需求](REQUIREMENTS.md#r11内置独立搜索目录)和 [R1.2](REQUIREMENTS.md#r12cloudflare-ai-gateway-图像生成目录)，而精确端点、凭据引用和最小探测属于各模板 YAML 的唯一事实来源。图像模板的健康探测必须采用非生成性端点，避免状态检查产生推理费用。当前模板目录的增量与验收条件分别由 [0.1 MVP Spec](../.kiro/specs/0.1-mvp/requirements.md) 和 [Cloudflare image-generation Spec](../.kiro/specs/0.2-cloudflare-image-generation/requirements.md) 维护。
 
 ## 6. Agent 查询流程
 
@@ -135,7 +130,7 @@ agentpulse api <api-id> [--json]
 agentpulse templates [--group <group-id>] [--json]
 agentpulse group add --file <path>
 agentpulse group update <group-id> --file <path>
-agentpulse api add --template <template-id> --configured-at <path> [--credential-env <name>]
+agentpulse api add --template <template-id> --configured-at ~/.zshenv [--credential-env <name>]
 agentpulse api add --file <path>
 agentpulse api update <api-id> --file <path>
 agentpulse api enable|disable <api-id>
@@ -193,7 +188,7 @@ Web 的内部 HTTP 路由属于实现细节。除非未来 Spec 明确引入正�
 
 - 缺少配置文件：返回可操作的初始化提示。
 - API 引用未知能力组：配置校验失败。
-- 环境变量不存在或登记位置不可用：状态为 `misconfigured`。
+- 凭据或声明的环境变量不存在、或登记位置不可用：状态为 `misconfigured`。
 - 第三方超时、认证失败或限流：状态为 `unhealthy`，并返回脱敏后的原因。
 - 缓存损坏：丢弃并重建，不影响配置事实来源。
 - 单个探测失败：保留其他探测结果。

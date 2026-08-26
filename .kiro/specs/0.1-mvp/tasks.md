@@ -112,8 +112,8 @@ Status: Ready for local configuration
 
 以下步骤需要当前用户提供已经申请好的真实 API Key 或其已存在的位置，因此不由仓库代码代替：
 
-- [ ] 把希望启用的搜索 API Key 写入本机环境变量或已登记的凭据文件。
-- [ ] 使用 `agentpulse api add --template <template-id> --configured-at <path>` 实例化希望使用的模板。
+- [ ] 通过本机系统设置使希望启用的搜索 API Key 出现在 AgentPulse 进程环境中。
+- [ ] 使用 `agentpulse api add --template <template-id> --configured-at ~/.zshenv` 实例化希望使用的模板。
 - [ ] 在新的终端会话中执行 `agentpulse group search --health --json`，核对真实探测结果。
 - [ ] 把符合预期的健康快照保留一小时，并确认同一查询不重复消耗额度。
 

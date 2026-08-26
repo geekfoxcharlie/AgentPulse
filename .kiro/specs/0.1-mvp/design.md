@@ -91,7 +91,7 @@ service:
 credential:
   type: environment
   name: BRAVE_SEARCH_API_KEY
-  configuredAt: ~/.config/agentpulse/secrets.zsh
+  configuredAt: ~/.zshenv
   placement:
     type: header
     name: X-Subscription-Token
@@ -141,7 +141,7 @@ usage:
 
 模板只收录独立数据 API，不收录 xAI 等模型服务端搜索工具。X API 的 recent search 按返回帖子消耗 read credits，且最小 `max_results` 为 10；健康探测保持一个短查询、最少字段并只校验 `meta`。Firecrawl 普通搜索与页面提取使用同一端点，但调用示例默认不启用 `scrapeOptions`，防止无意增加消耗。Brave 的调用说明要求先检查本机健康快照。
 
-模板只包含公开的供应商事实和 AgentPulse 默认环境变量名。实例化命令接收本机凭据位置和可选变量名覆盖，生成一份完整用户配置。运行时注册表不回读模板，也不把模板与实例动态合并。
+模板只包含公开的供应商事实和 AgentPulse 默认环境变量名。实例化命令接收本机已发现的环境设置位置和可选变量名覆盖，生成一份完整用户配置。该位置只是元信息：AgentPulse 不会 source、读取或写入它。运行时注册表不回读模板，也不把模板与实例动态合并。
 
 这样的边界保证：
 
@@ -172,7 +172,7 @@ agentpulse context [--json]
 agentpulse group add --file <path>
 agentpulse group update <group-id> --file <path>
 agentpulse api add --file <path>
-agentpulse api add --template <template-id> --configured-at <path> [--credential-env <name>]
+agentpulse api add --template <template-id> --configured-at ~/.zshenv [--credential-env <name>]
 agentpulse api update <api-id> --file <path>
 agentpulse api enable <api-id>
 agentpulse api disable <api-id>

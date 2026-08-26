@@ -22,8 +22,14 @@ agentpulse group search --health --json
 
 # Get complete instructions for one API
 agentpulse api exa-search --json
+
+# Discover configured image-generation APIs and their non-generative health status
+agentpulse group image-generation --health --json
+
+# Get the Cloudflare GPT Image 2 gateway request contract
+agentpulse api cloudflare-gpt-image-2 --json
 ```
 
-Use this flow for tasks such as web research, news or article discovery, X post search, and finding topic-related resources. Check AgentPulse before asking the user to provide a new API key.
+Use this flow for tasks such as web research, news or article discovery, X post search, image generation, and finding topic-related resources. Check AgentPulse before asking the user to provide a new API key.
 
 Project: https://github.com/geekfoxcharlie/AgentPulse

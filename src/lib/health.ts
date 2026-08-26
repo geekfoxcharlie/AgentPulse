@@ -21,17 +21,17 @@ export interface HealthOptions {
   ttlMs?: number;
 }
 
-export function createProbeRequest(api: ApiDefinition, secret: string): { url: string; init: RequestInit } {
-  const url = new URL(api.probe.url);
+export function createProbeRequest(api: ApiDefinition, secret: string, environment: NodeJS.ProcessEnv = process.env): { url: string; init: RequestInit } {
+  const url = new URL(expandEnvironmentUrl(api.probe.url, environment));
   for (const [name, value] of Object.entries(api.probe.query ?? {})) url.searchParams.set(name, String(value));
 
   const headers = new Headers(api.probe.headers);
-  if (api.credential.placement.type === "header") {
-    headers.set(api.credential.placement.name, secret);
-  } else if (api.credential.placement.type === "bearer") {
-    headers.set("Authorization", `Bearer ${secret}`);
-  } else {
-    url.searchParams.set(api.credential.placement.name, secret);
+  injectCredential(url, headers, api.credential.placement, secret);
+  for (const requirement of api.environment ?? []) {
+    if (!requirement.placement) continue;
+    const value = environment[requirement.name];
+    if (!value) throw new Error(`Environment variable ${requirement.name} is not available to this process.`);
+    injectCredential(url, headers, requirement.placement, value);
   }
 
   const init: RequestInit = { method: api.probe.method, headers };
@@ -94,13 +94,14 @@ async function runGroupHealth(
       if (!api.enabled) return [api.id, { status: "disabled", checkedAt: null, expiresAt: null, isExpired: false } satisfies HealthSnapshot] as const;
 
       const secret = process.env[api.credential.name];
+      const missingEnvironment = requiredEnvironmentNames(api).filter((name) => !process.env[name]);
       const fingerprint = fingerprintFor(api);
       const cached = state.entries[api.id];
-      if (isCacheCurrent(cached, fingerprint, Boolean(secret), now())) {
+      if (isCacheCurrent(cached, fingerprint, missingEnvironment.length === 0, now())) {
         return [api.id, snapshotFor(api, state, now())] as const;
       }
 
-      const entry = await probeApi(api, secret, fingerprint, now, ttlMs, options.fetchImpl ?? fetch);
+      const entry = await probeApi(api, secret, missingEnvironment, fingerprint, now, ttlMs, options.fetchImpl ?? fetch);
       state.entries[api.id] = entry;
       return [api.id, snapshotFor(api, state, now())] as const;
     })
@@ -122,6 +123,7 @@ function isCacheCurrent(entry: HealthEntry | undefined, fingerprint: string, cre
 async function probeApi(
   api: ApiDefinition,
   secret: string | undefined,
+  missingEnvironment: string[],
   fingerprint: string,
   now: () => Date,
   ttlMs: number,
@@ -129,12 +131,15 @@ async function probeApi(
 ): Promise<HealthEntry> {
   const startedAt = now();
   const expiresAt = new Date(startedAt.getTime() + ttlMs).toISOString();
-  const base = { apiId: api.id, fingerprint, checkedAt: startedAt.toISOString(), expiresAt, credentialPresent: Boolean(secret) };
-  if (!secret) {
+  const base = { apiId: api.id, fingerprint, checkedAt: startedAt.toISOString(), expiresAt, credentialPresent: missingEnvironment.length === 0 };
+  if (!secret || missingEnvironment.length > 0) {
     return {
       ...base,
       status: "misconfigured",
-      error: { category: "credential_missing", message: `Environment variable ${api.credential.name} is not available to this process.` }
+      error: {
+        category: "credential_missing",
+        message: `Required environment variable${missingEnvironment.length === 1 ? "" : "s"} ${missingEnvironment.join(", ")} ${missingEnvironment.length === 1 ? "is" : "are"} not available to this process.`
+      }
     };
   }
 
@@ -172,7 +177,12 @@ async function probeApi(
     return { ...base, status: "healthy", latencyMs };
   } catch (error: unknown) {
     const latencyMs = Math.max(0, now().getTime() - startedAt.getTime());
-    return { ...base, status: "unhealthy", latencyMs, error: networkError(error, secret) };
+    return {
+      ...base,
+      status: "unhealthy",
+      latencyMs,
+      error: networkError(error, [secret, ...(api.environment?.map((requirement) => process.env[requirement.name]) ?? [])])
+    };
   } finally {
     clearTimeout(timer);
   }
@@ -184,10 +194,33 @@ function fingerprintFor(api: ApiDefinition): string {
       JSON.stringify({
         enabled: api.enabled,
         credential: { name: api.credential.name, placement: api.credential.placement },
+        environment: api.environment,
         probe: api.probe
       })
     )
     .digest("hex");
+}
+
+function requiredEnvironmentNames(api: ApiDefinition): string[] {
+  return [api.credential.name, ...(api.environment?.map((requirement) => requirement.name) ?? [])];
+}
+
+function expandEnvironmentUrl(template: string, environment: NodeJS.ProcessEnv): string {
+  return template.replaceAll(/{{([A-Z][A-Z0-9_]*)}}/g, (_match, name: string) => {
+    const value = environment[name];
+    if (!value) throw new Error(`Environment variable ${name} is not available to this process.`);
+    return encodeURIComponent(value);
+  });
+}
+
+function injectCredential(url: URL, headers: Headers, placement: ApiDefinition["credential"]["placement"], value: string): void {
+  if (placement.type === "header") {
+    headers.set(placement.name, value);
+  } else if (placement.type === "bearer") {
+    headers.set("Authorization", `Bearer ${value}`);
+  } else {
+    url.searchParams.set(placement.name, value);
+  }
 }
 
 function verifyAssertions(body: unknown, assertions: ApiDefinition["probe"]["assertions"]): HealthError | null {
@@ -223,11 +256,15 @@ function httpError(statusCode: number): HealthError {
   return { category: "http", statusCode, message: `The provider returned HTTP ${statusCode} for the minimal probe.` };
 }
 
-function networkError(error: unknown, secret: string): HealthError {
+function networkError(error: unknown, valuesToRedact: Array<string | undefined>): HealthError {
   if (error instanceof Error && error.name === "AbortError") {
     return { category: "timeout", message: "The minimal probe timed out." };
   }
   const rawMessage = error instanceof Error ? error.message : "The network request failed.";
-  const message = rawMessage.replaceAll(secret, "[redacted]").slice(0, 240);
+  let message = rawMessage;
+  for (const value of valuesToRedact) {
+    if (value) message = message.replaceAll(value, "[redacted]");
+  }
+  message = message.slice(0, 240);
   return { category: "network", message: message || "The network request failed." };
 }

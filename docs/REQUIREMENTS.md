@@ -78,11 +78,19 @@ AgentPulse MUST 假设在同一操作系统用户下运行的本地 Agent 是可
 
 该目录是经过人工研究后维护的候选集合，不构成运行时的质量排名或自动路由规则。Brave Search 保留为独立索引选项，但本机 Agent 在依赖它前 SHOULD 先查询其缓存健康状态。用户或可信 Agent 仍可以通过 CLI 登记其他 API；它们不因此成为内置推荐目录的一部分。
 
+### R1.2：Cloudflare AI Gateway 图像生成目录
+
+内置 `image-generation` 目录 MUST 提供 `cloudflare-gpt-image-2` 模板。调用示例 MUST 使用 Cloudflare AI Gateway 的 `POST /accounts/{account_id}/ai/run` 通用端点、模型 `openai/gpt-image-2`，并明确声明 `CLOUDFLARE_API_TOKEN` 和 `CLOUDFLARE_ACCOUNT_ID` 两项本机环境需求。
+
+该模板的最小健康检查 MUST 使用不调用模型的 `GET /accounts/{account_id}/ai-gateway/gateways`，验证 `success` 和 `result` 字段。调用说明 MUST 区分此非生成性检查与真实图像推理：前者需要 `AI Gateway > Read`，后者还需要 `Workers AI > Read` 和足够的可用额度；完整的 Cloudflare Gateway 设置按官方建议同时授予 `AI Gateway > Edit`。`openai/gpt-image-2` 属于第三方模型，默认路由到帐户的 default gateway；其 REST 推理响应使用外层 `{ success, result }` 包装，完成态位于 `result.state`，图像 URL 位于 `result.result.image`。
+
 ### R2：凭据元信息
 
 AgentPulse MUST 记录凭据的环境变量名、配置位置和请求注入方式，但 MUST NOT 把真实密钥值作为 API 配置的一部分保存。
 
-配置位置可以是 `.zshenv`、由 `.zshenv` 加载的专用文件或其他本地位置。系统 MUST 如实记录实际位置，不强制所有凭据采用同一种存储方式。
+当端点路径还需要一个或多个非秘密的环境变量（例如账户 ID）时，系统 MUST 同样记录变量名、配置位置和用途，但不得记录变量值。附加环境变量可选地声明 Bearer、Header 或 Query 注入方式，以支持多个请求凭据。
+
+`~/.zshenv` 是 `--configured-at` 文档和示例中的默认位置；其他实际配置位置同样有效。AgentPulse MUST NOT source、读取或写入该位置；它只检查变量是否已出现在自身进程环境中。
 
 AgentPulse 的查询结果和 Web 页面 MUST 默认不输出环境变量的真实值。Agent 可以根据变量名和位置自行读取凭据并完成直接调用。
 

@@ -8,7 +8,7 @@ import { withEnvironment, withTempPaths } from "./helpers.js";
 
 test("read-only web page shows metadata but never renders the secret or writes health state", async () => {
   await withTempPaths(async (paths) => {
-    await instantiateApiTemplate(paths, "brave-search", "~/.config/agentpulse/secrets.zsh");
+    await instantiateApiTemplate(paths, "brave-search", "~/.zshenv");
     const configPath = join(paths.apisDir, "brave-search.yaml");
     const before = await readFile(configPath, "utf8");
 

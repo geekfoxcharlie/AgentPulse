@@ -1,0 +1,6 @@
+schemaVersion: 1
+kind: group-template
+id: image-generation
+name: Image Generation
+description: Direct image-generation APIs that local agents can call with locally registered credentials.
+order: 20

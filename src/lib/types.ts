@@ -19,6 +19,19 @@ export interface TemplateCredentialReference {
   placement: CredentialPlacement;
 }
 
+export interface EnvironmentRequirement {
+  name: string;
+  configuredAt: string;
+  description: string;
+  placement?: CredentialPlacement;
+}
+
+export interface TemplateEnvironmentRequirement {
+  defaultName: string;
+  description: string;
+  placement?: CredentialPlacement;
+}
+
 export interface ProbeAssertion {
   path: string;
   exists?: boolean;
@@ -69,13 +82,15 @@ export interface ApiDefinition {
   enabled: boolean;
   service: ServiceDefinition;
   credential: CredentialReference;
+  environment?: EnvironmentRequirement[];
   probe: ProbeDefinition;
   usage: UsageDefinition;
 }
 
-export interface ApiTemplate extends Omit<ApiDefinition, "kind" | "credential"> {
+export interface ApiTemplate extends Omit<ApiDefinition, "kind" | "credential" | "environment"> {
   kind: "api-template";
   credential: TemplateCredentialReference;
+  environment?: TemplateEnvironmentRequirement[];
 }
 
 export interface Registry {

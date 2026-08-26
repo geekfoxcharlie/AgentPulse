@@ -1,0 +1,46 @@
+schemaVersion: 1
+kind: api-template
+id: cloudflare-gpt-image-2
+name: Cloudflare GPT Image 2
+group: image-generation
+description: Generate or edit images with OpenAI GPT Image 2 through Cloudflare AI Gateway's universal REST API.
+enabled: true
+service:
+  baseUrl: https://api.cloudflare.com/client/v4
+  docsUrl: https://developers.cloudflare.com/ai/models/openai/gpt-image-2/
+credential:
+  type: environment
+  defaultName: CLOUDFLARE_API_TOKEN
+  placement:
+    type: bearer
+environment:
+  - defaultName: CLOUDFLARE_ACCOUNT_ID
+    description: Cloudflare account ID used in the AI Gateway request path.
+probe:
+  method: GET
+  url: https://api.cloudflare.com/client/v4/accounts/{{CLOUDFLARE_ACCOUNT_ID}}/ai-gateway/gateways
+  query:
+    per_page: 1
+  expectedStatus: [200]
+  assertions:
+    - path: success
+      equals: true
+    - path: result
+      exists: true
+  timeoutMs: 10000
+usage:
+  notes: >-
+    Cloudflare routes this third-party model through the account default AI Gateway; a named gateway header is optional. The non-generative health probe lists gateways; it requires Account > AI Gateway > Read and verifies the account ID and token without calling a model. Cloudflare's setup guide recommends AI Gateway > Read, AI Gateway > Edit, and Workers AI > Read; image generation also needs available credits. The REST response wraps the model outcome as { success, result: { state, result: { image } } }. A healthy probe does not prove model entitlement, billing, or a successful image inference.
+  example: |
+    curl -sS -X POST "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/ai/run" \
+      -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+      -H "Content-Type: application/json" \
+      --data '{
+        "model": "openai/gpt-image-2",
+        "input": {
+          "prompt": "A clean isometric glass server cube glowing cyan on a matte black desk",
+          "quality": "low",
+          "size": "1024x1024",
+          "output_format": "png"
+        }
+      }'
