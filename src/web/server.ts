@@ -52,10 +52,11 @@ function renderDashboard(
   paths: ConfigPaths
 ): string {
   const totalApis = details.reduce((sum, group) => sum + group.apis.length, 0);
-  const activeApis = details.flatMap((group) => group.apis).filter((api) => api.enabled).length;
+  const totalClis = details.reduce((sum, group) => sum + group.clis.length, 0);
+  const activeEntries = details.flatMap((group) => [...group.apis, ...group.clis]).filter((entry) => entry.enabled).length;
   const lastCheck = details
-    .flatMap((group) => group.apis)
-    .map((api) => api.health.checkedAt)
+    .flatMap((group) => [...group.apis, ...group.clis])
+    .map((entry) => entry.health.checkedAt)
     .filter((value): value is string => value !== null)
     .sort()
     .at(-1);
@@ -68,15 +69,15 @@ function renderDashboard(
         <div class="masthead-copy">
           <p class="eyebrow">Local API field manual</p>
           <h1>Configured capabilities,<br><em>without relying on memory.</em></h1>
-          <p class="lede">This is a read-only index. Agents query it through the CLI and call third-party APIs directly; this page only shows the current configuration and existing health snapshots.</p>
+          <p class="lede">This is a read-only index. Agents query it through the CLI and call third-party APIs and local tools directly; this page only shows the current configuration and existing health snapshots.</p>
         </div>
         <div class="pulse-rail" aria-label="AgentPulse signal rail"><i></i><i></i><i></i><i></i></div>
       </header>
 
       <section class="ledger" aria-label="API summary">
         <div><span>Groups</span><strong>${groups.length}</strong></div>
-        <div><span>Registered APIs</span><strong>${totalApis}</strong></div>
-        <div><span>Enabled</span><strong>${activeApis}</strong></div>
+        <div><span>Registered capabilities</span><strong>${totalApis + totalClis}</strong></div>
+        <div><span>Enabled</span><strong>${activeEntries}</strong></div>
         <div><span>Last check</span><strong class="date">${lastCheck ? escapeHtml(formatDate(lastCheck)) : "Not checked yet"}</strong></div>
       </section>
 
@@ -88,6 +89,10 @@ function renderDashboard(
 }
 
 function renderGroup(detail: Awaited<ReturnType<typeof groupView>>): string {
+  const entries = [
+    ...detail.apis.map((api) => renderApi(api)),
+    ...detail.clis.map((cli) => renderCli(cli))
+  ];
   return `<section class="group-block" id="${escapeHtml(detail.group.id)}">
     <div class="group-heading">
       <div>
@@ -97,7 +102,7 @@ function renderGroup(detail: Awaited<ReturnType<typeof groupView>>): string {
       <p>${escapeHtml(detail.group.description)}</p>
     </div>
     <div class="api-stack">
-      ${detail.apis.length === 0 ? "<p class=\"no-api\">No API is configured in this group yet.</p>" : detail.apis.map(renderApi).join("\n")}
+      ${entries.length === 0 ? "<p class=\"no-api\">No capability is configured in this group yet.</p>" : entries.join("\n")}
     </div>
   </section>`;
 }
@@ -148,14 +153,46 @@ function renderApi(api: Awaited<ReturnType<typeof groupView>>["apis"][number]): 
   </article>`;
 }
 
+function renderCli(cli: Awaited<ReturnType<typeof groupView>>["clis"][number]): string {
+  const health = cli.health;
+  const healthMeta = health.checkedAt
+    ? `Checked ${formatDate(health.checkedAt)} · ${health.isExpired ? "Cache expired" : `Valid until ${formatDate(health.expiresAt ?? health.checkedAt)}`}`
+    : health.status === "disabled" ? "Manually disabled; not checked" : "No health snapshot yet";
+
+  return `<article class="api-card">
+    <div class="api-main">
+      <div class="api-title"><span class="status ${health.status}">${healthLabel(health.status)}</span><h3>${escapeHtml(cli.name)}</h3></div>
+      <p>${escapeHtml(cli.description)}</p>
+      <div class="api-meta"><code>${escapeHtml(cli.id)}</code><span>CLI · <code>${escapeHtml(cli.command)}</code></span>${health.latencyMs !== undefined ? `<span>${health.latencyMs} ms</span>` : ""}</div>
+    </div>
+    <div class="health-note ${health.isExpired ? "stale" : ""}">
+      <span>${escapeHtml(healthMeta)}</span>
+      ${health.error ? `<small>${escapeHtml(health.error.message)}</small>` : ""}
+    </div>
+    <details>
+      <summary>View usage and install reference</summary>
+      <div class="details-grid">
+        <dl>
+          <div><dt>Command</dt><dd><code>${escapeHtml(cli.command)}</code></dd></div>
+          <div><dt>Installed via</dt><dd><code>${escapeHtml(cli.install.command)}</code></dd></div>
+          <div><dt>Install method</dt><dd>${escapeHtml(cli.install.method)}</dd></div>
+          <div><dt>Health probe</dt><dd><code>${escapeHtml(cli.command)} ${escapeHtml(cli.probe.args.join(" "))}</code> expects exit ${cli.probe.expectedExit}</dd></div>
+        </dl>
+        <div class="usage"><p>${escapeHtml(cli.usage.notes)}</p><pre><code>${escapeHtml(cli.usage.example)}</code></pre><a href="${escapeHtml(cli.docsUrl)}" rel="noreferrer" target="_blank">Official documentation ↗</a></div>
+      </div>
+    </details>
+  </article>`;
+}
+
 function renderEmptyState(paths: ConfigPaths): string {
   return `<section class="empty-state">
-    <p class="eyebrow">No APIs registered</p>
-    <h2>Add a local API to the index first.</h2>
-    <p>Built-in templates are available for six independent search APIs and Cloudflare GPT Image 2. They appear here after the CLI instantiates them.</p>
+    <p class="eyebrow">No capabilities registered</p>
+    <h2>Add a local capability to the index first.</h2>
+    <p>Built-in templates cover six independent search APIs, Cloudflare GPT Image 2, and the browser-harness CLI. They appear here after the CLI instantiates them.</p>
     <pre><code>agentpulse templates --group search
-agentpulse templates --group image-generation
-agentpulse api add --template cloudflare-gpt-image-2 --configured-at ~/.zshenv</code></pre>
+agentpulse templates --group browser
+agentpulse api add --template cloudflare-gpt-image-2 --configured-at ~/.zshenv
+agentpulse cli add --template browser-harness</code></pre>
     <small>Current configuration directory: <code>${escapeHtml(paths.configDir)}</code></small>
   </section>`;
 }

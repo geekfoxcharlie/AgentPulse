@@ -48,6 +48,38 @@ test("CLI exposes templates, materializes an API, and returns a structured missi
   });
 });
 
+test("CLI exposes and configures the browser-harness CLI template", async () => {
+  await withTempPaths(async (paths) => {
+    const env: NodeJS.ProcessEnv = { ...process.env, AGENTPULSE_CONFIG_DIR: paths.configDir, AGENTPULSE_STATE_DIR: paths.stateDir };
+
+    const templates = await run(process.execPath, [cliPath, "templates", "--group", "browser", "--json"], { env });
+    const templateEnvelope = JSON.parse(templates.stdout) as {
+      data: { groups: Array<{ id: string }>; templates: unknown[]; cliTemplates: Array<{ id: string; command: string; probe: { args: string[] } }> };
+    };
+    assert.deepEqual(templateEnvelope.data.groups.map((group) => group.id), ["browser"]);
+    assert.deepEqual(templateEnvelope.data.templates, []);
+    const template = templateEnvelope.data.cliTemplates[0];
+    assert.equal(template?.id, "browser-harness");
+    assert.equal(template?.command, "browser-harness");
+    assert.deepEqual(template?.probe.args, ["doctor", "--json"]);
+
+    const add = await run(process.execPath, [cliPath, "cli", "add", "--template", "browser-harness", "--json"], { env });
+    const addEnvelope = JSON.parse(add.stdout) as { data: { id: string; kind: string } };
+    assert.equal(addEnvelope.data.id, "browser-harness");
+    assert.equal(addEnvelope.data.kind, "cli");
+
+    const view = await run(process.execPath, [cliPath, "cli", "browser-harness", "--json"], { env });
+    const viewEnvelope = JSON.parse(view.stdout) as { data: { command: string; install: { method: string }; health: { status: string } } };
+    assert.equal(viewEnvelope.data.command, "browser-harness");
+    assert.equal(viewEnvelope.data.install.method, "uv-tool");
+    assert.equal(viewEnvelope.data.health.status, "unknown");
+
+    const disable = await run(process.execPath, [cliPath, "cli", "disable", "browser-harness", "--json"], { env });
+    const disableEnvelope = JSON.parse(disable.stdout) as { data: { enabled: boolean } };
+    assert.equal(disableEnvelope.data.enabled, false);
+  });
+});
+
 test("CLI exposes and configures the Cloudflare GPT Image 2 template", async () => {
   await withTempPaths(async (paths) => {
     const env: NodeJS.ProcessEnv = { ...process.env, AGENTPULSE_CONFIG_DIR: paths.configDir, AGENTPULSE_STATE_DIR: paths.stateDir };

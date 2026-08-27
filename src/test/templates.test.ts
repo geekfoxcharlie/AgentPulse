@@ -30,7 +30,7 @@ function materialize(template: ApiTemplate): ApiDefinition {
 
 test("built-in templates cover the search catalog and Cloudflare image generation", async () => {
   const catalog = await loadTemplateCatalog();
-  assert.deepEqual(catalog.groups.map((group) => group.id), ["search", "image-generation"]);
+  assert.deepEqual(catalog.groups.map((group) => group.id), ["search", "image-generation", "browser"]);
   assert.deepEqual(catalog.apis.map((api) => api.id), [
     "brave-search",
     "cloudflare-gpt-image-2",

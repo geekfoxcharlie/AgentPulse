@@ -2,11 +2,13 @@ import { readdir } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import { AppError } from "./errors.js";
-import { getApi, loadRegistry, parseConfigFile, upsertApi, upsertGroup, validateApi, validateGroup, validatePlacement } from "./config.js";
+import { getApi, loadRegistry, parseConfigFile, upsertApi, upsertCli, upsertGroup, validateApi, validateCli, validateGroup, validatePlacement } from "./config.js";
 import {
   SCHEMA_VERSION,
   type ApiDefinition,
   type ApiTemplate,
+  type CliDefinition,
+  type CliTemplate,
   type ConfigPaths,
   type GroupDefinition,
   type GroupTemplate,
@@ -17,24 +19,48 @@ import {
 export interface TemplateCatalog {
   groups: GroupTemplate[];
   apis: ApiTemplate[];
+  clis: CliTemplate[];
 }
 
 export async function loadTemplateCatalog(): Promise<TemplateCatalog> {
   const root = fileURLToPath(new URL("../templates/", import.meta.url));
-  const [groupFiles, apiFiles] = await Promise.all([readTemplateFiles(join(root, "groups")), readTemplateFiles(join(root, "apis"))]);
+  const [groupFiles, apiFiles, cliFiles] = await Promise.all([
+    readTemplateFiles(join(root, "groups")),
+    readTemplateFiles(join(root, "apis")),
+    readTemplateFiles(join(root, "clis"))
+  ]);
   const groups = groupFiles.map(({ value, source }) => validateGroupTemplate(value, source)).sort((left, right) => (left.order ?? 0) - (right.order ?? 0));
   const apis = apiFiles.map(({ value, source }) => validateApiTemplate(value, source)).sort((left, right) => left.name.localeCompare(right.name));
+  const clis = cliFiles.map(({ value, source }) => validateCliTemplate(value, source)).sort((left, right) => left.name.localeCompare(right.name));
   const groupIds = new Set(groups.map((group) => group.id));
   for (const api of apis) {
     if (!groupIds.has(api.group)) throw new AppError("invalid_template", `${api.id} references unknown template group ${api.group}.`);
   }
-  return { groups, apis };
+  for (const cli of clis) {
+    if (!groupIds.has(cli.group)) throw new AppError("invalid_template", `${cli.id} references unknown template group ${cli.group}.`);
+    if (apis.some((api) => api.id === cli.id)) throw new AppError("invalid_template", `${cli.id} duplicates a built-in API template ID.`);
+  }
+  return { groups, apis, clis };
 }
 
 export async function getApiTemplate(templateId: string): Promise<ApiTemplate> {
   const template = (await loadTemplateCatalog()).apis.find((api) => api.id === templateId);
   if (!template) throw new AppError("template_not_found", `No built-in API template with ID ${templateId}.`);
   return template;
+}
+
+export async function getCliTemplate(templateId: string): Promise<CliTemplate> {
+  const template = (await loadTemplateCatalog()).clis.find((cli) => cli.id === templateId);
+  if (!template) throw new AppError("template_not_found", `No built-in CLI template with ID ${templateId}.`);
+  return template;
+}
+
+async function materializeTemplateGroup(paths: ConfigPaths, catalog: TemplateCatalog, groupId: string): Promise<void> {
+  const registry = await loadRegistry(paths);
+  if (registry.groups.some((group) => group.id === groupId)) return;
+  const groupTemplate = catalog.groups.find((group) => group.id === groupId);
+  if (!groupTemplate) throw new AppError("invalid_template", `Template group ${groupId} is unavailable.`);
+  await upsertGroup(paths, materializeGroup(groupTemplate));
 }
 
 export async function instantiateApiTemplate(
@@ -48,12 +74,7 @@ export async function instantiateApiTemplate(
   const template = catalog.apis.find((api) => api.id === templateId);
   if (!template) throw new AppError("template_not_found", `No built-in API template with ID ${templateId}.`);
 
-  const registry = await loadRegistry(paths);
-  if (!registry.groups.some((group) => group.id === template.group)) {
-    const groupTemplate = catalog.groups.find((group) => group.id === template.group);
-    if (!groupTemplate) throw new AppError("invalid_template", `Template ${template.id} references unavailable group ${template.group}.`);
-    await upsertGroup(paths, materializeGroup(groupTemplate));
-  }
+  await materializeTemplateGroup(paths, catalog, template.group);
 
   const { environment: templateEnvironment, ...templateDefinition } = template;
   const api: ApiDefinition = {
@@ -76,6 +97,17 @@ export async function instantiateApiTemplate(
   }
 
   return upsertApi(paths, validateApi(api, `template:${template.id}`));
+}
+
+export async function instantiateCliTemplate(paths: ConfigPaths, templateId: string): Promise<CliDefinition> {
+  const catalog = await loadTemplateCatalog();
+  const template = catalog.clis.find((cli) => cli.id === templateId);
+  if (!template) throw new AppError("template_not_found", `No built-in CLI template with ID ${templateId}.`);
+
+  await materializeTemplateGroup(paths, catalog, template.group);
+
+  const cli: CliDefinition = { ...template, kind: "cli" };
+  return upsertCli(paths, validateCli(cli, `template:${template.id}`));
 }
 
 export async function compareTemplateWithConfigured(paths: ConfigPaths, templateId: string): Promise<{ template: ApiTemplate; configured: ApiDefinition | null }> {
@@ -122,6 +154,13 @@ export function validateApiTemplate(value: unknown, source = "API template"): Ap
   );
   const { environment: _materializedEnvironment, ...templateDefinition } = materialized;
   return environment ? { ...templateDefinition, kind: "api-template", credential, environment } : { ...templateDefinition, kind: "api-template", credential };
+}
+
+export function validateCliTemplate(value: unknown, source = "CLI template"): CliTemplate {
+  const raw = asRecord(value, source);
+  if (raw.kind !== "cli-template") throw new AppError("invalid_template", `${source}.kind must equal cli-template.`);
+  const materialized = validateCli({ ...raw, kind: "cli" }, source);
+  return { ...materialized, kind: "cli-template" };
 }
 
 function materializeGroup(template: GroupTemplate): GroupDefinition {

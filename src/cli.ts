@@ -1,11 +1,11 @@
 #!/usr/bin/env node
-import { addOrUpdateApiFromFile, addOrUpdateGroupFromFile, getApi, loadRegistry, setApiEnabled } from "./lib/config.js";
+import { addOrUpdateApiFromFile, addOrUpdateCliFromFile, addOrUpdateGroupFromFile, getApi, getCli, loadRegistry, setApiEnabled, setCliEnabled } from "./lib/config.js";
 import { agentContext } from "./lib/context.js";
 import { asAppError, AppError } from "./lib/errors.js";
 import { checkGroupHealth, getCachedHealthSnapshots } from "./lib/health.js";
 import { resolvePaths } from "./lib/paths.js";
-import { apiView, groupView, groupsView } from "./lib/query.js";
-import { instantiateApiTemplate, loadTemplateCatalog } from "./lib/templates.js";
+import { apiView, cliView, groupView, groupsView } from "./lib/query.js";
+import { instantiateApiTemplate, instantiateCliTemplate, loadTemplateCatalog } from "./lib/templates.js";
 import { SCHEMA_VERSION, type CliEnvelope } from "./lib/types.js";
 import { startWebServer } from "./web/server.js";
 
@@ -45,7 +45,16 @@ async function main(): Promise<void> {
         docsUrl: api.service.docsUrl,
         probe: { method: api.probe.method, url: api.probe.url }
       }));
-      printSuccess("templates", { groups, templates }, json);
+      const cliTemplates = (groupId ? catalog.clis.filter((cli) => cli.group === groupId) : catalog.clis).map((cli) => ({
+        id: cli.id,
+        name: cli.name,
+        group: cli.group,
+        description: cli.description,
+        command: cli.command,
+        docsUrl: cli.docsUrl,
+        probe: { args: cli.probe.args, expectedExit: cli.probe.expectedExit }
+      }));
+      printSuccess("templates", { groups, templates, cliTemplates }, json);
       return;
     }
     if (command === "group") {
@@ -54,6 +63,10 @@ async function main(): Promise<void> {
     }
     if (command === "api") {
       await handleApiCommand(args.slice(1), json, paths);
+      return;
+    }
+    if (command === "cli") {
+      await handleCliCommand(args.slice(1), json, paths);
       return;
     }
     if (command === "validate") {
@@ -127,6 +140,38 @@ async function handleApiCommand(args: string[], json: boolean, paths: ReturnType
   printSuccess("api", await apiView(api, paths), json);
 }
 
+async function handleCliCommand(args: string[], json: boolean, paths: ReturnType<typeof resolvePaths>): Promise<void> {
+  const action = args[0];
+  if (!action) throw new AppError("invalid_argument", "A CLI capability ID or cli command is required.");
+
+  if (action === "add") {
+    const templateId = option(args, "--template");
+    if (templateId) {
+      const cli = await instantiateCliTemplate(paths, templateId);
+      printSuccess("cli.add", cli, json);
+      return;
+    }
+    const cli = await addOrUpdateCliFromFile(paths, requiredOption(args, "--file"));
+    printSuccess("cli.add", cli, json);
+    return;
+  }
+  if (action === "update") {
+    const cliId = requiredPositional(args, 1, "A CLI capability ID is required for update.");
+    const cli = await addOrUpdateCliFromFile(paths, requiredOption(args, "--file"), cliId);
+    printSuccess("cli.update", cli, json);
+    return;
+  }
+  if (action === "enable" || action === "disable") {
+    const cliId = requiredPositional(args, 1, `A CLI capability ID is required for ${action}.`);
+    const cli = await setCliEnabled(paths, cliId, action === "enable");
+    printSuccess(`cli.${action}`, cli, json);
+    return;
+  }
+
+  const cli = await getCli(paths, action);
+  printSuccess("cli", await cliView(cli, paths), json);
+}
+
 function option(args: string[], name: string): string | undefined {
   const index = args.indexOf(name);
   if (index === -1) return undefined;
@@ -180,23 +225,35 @@ function renderHuman(command: string, data: unknown): string {
   if (command === "context") return (data as { text: string }).text;
   if (command === "groups") {
     const groups = data as Awaited<ReturnType<typeof groupsView>>;
-    return groups.length === 0 ? "No configured groups. Run `agentpulse templates --group search`." : groups.map((group) => `${group.id}\t${group.name}\t${group.apiCount} APIs\t${group.health.healthy} healthy / ${group.health.unhealthy} unhealthy / ${group.health.misconfigured} needs configuration`).join("\n");
+    return groups.length === 0 ? "No configured groups. Run `agentpulse templates`." : groups.map((group) => `${group.id}\t${group.name}\t${group.apiCount} APIs, ${group.cliCount} CLIs\t${group.health.healthy} healthy / ${group.health.unhealthy} unhealthy / ${group.health.misconfigured} needs configuration`).join("\n");
   }
   if (command === "templates") {
-    const result = data as { templates: Array<{ id: string; name: string; group: string; defaultCredentialEnv: string; requiredEnvironment: string[] }> };
-    return result.templates.map((template) => `${template.id}\t${template.name}\t${template.group}\t${[template.defaultCredentialEnv, ...template.requiredEnvironment].join(", ")}`).join("\n");
+    const result = data as { templates: Array<{ id: string; name: string; group: string; defaultCredentialEnv: string; requiredEnvironment: string[] }>; cliTemplates: Array<{ id: string; name: string; group: string; command: string }> };
+    return [
+      ...result.templates.map((template) => `${template.id}\t${template.name}\t${template.group}\tapi\t${[template.defaultCredentialEnv, ...template.requiredEnvironment].join(", ")}`),
+      ...result.cliTemplates.map((template) => `${template.id}\t${template.name}\t${template.group}\tcli\t${template.command}`)
+    ].join("\n");
   }
   if (command === "group") {
     const result = data as Awaited<ReturnType<typeof groupView>>;
-    return [`${result.group.name} (${result.group.id})`, ...result.apis.map((api) => `  ${api.id}\t${api.health.status}\t${api.credential.name}`)].join("\n");
+    return [
+      `${result.group.name} (${result.group.id})`,
+      ...result.apis.map((api) => `  ${api.id}\t${api.health.status}\t${api.credential.name}`),
+      ...result.clis.map((cli) => `  ${cli.id}\t${cli.health.status}\t${cli.command}`)
+    ].join("\n");
   }
   if (command === "api") {
     const api = data as Awaited<ReturnType<typeof apiView>>;
     const environment = api.environment.length === 0 ? "" : `\nRequired environment: ${api.environment.map((requirement) => `${requirement.name} at ${requirement.configuredAt}`).join(", ")}`;
     return `${api.name} (${api.id})\n${api.description}\nCredential: ${api.credential.name} at ${api.credential.configuredAt}${environment}\nHealth: ${api.health.status}\nDocs: ${api.service.docsUrl}\n\n${api.usage.example}`;
   }
+  if (command === "cli") {
+    const cli = data as Awaited<ReturnType<typeof cliView>>;
+    return `${cli.name} (${cli.id})\n${cli.description}\nCommand: ${cli.command}\nInstalled via: ${cli.install.command}\nHealth: ${cli.health.status}\nDocs: ${cli.docsUrl}\n\n${cli.usage.example}`;
+  }
   if (command === "validate") return `Configuration valid: ${JSON.stringify(data)}`;
   if (command.startsWith("api.") || command.startsWith("group.")) return `Updated: ${(data as { id: string }).id}`;
+  if (command.startsWith("cli.")) return `Updated: ${(data as { id: string }).id}`;
   return JSON.stringify(data, null, 2);
 }
 
@@ -207,6 +264,7 @@ Query
   agentpulse groups [--json]
   agentpulse group <group-id> [--health] [--json]
   agentpulse api <api-id> [--json]
+  agentpulse cli <cli-id> [--json]
   agentpulse templates [--group <group-id>] [--json]
   agentpulse context [--json]
 
@@ -217,6 +275,10 @@ Configure
   agentpulse api add --file <path>
   agentpulse api update <api-id> --file <path>
   agentpulse api enable|disable <api-id>
+  agentpulse cli add --template <template-id>
+  agentpulse cli add --file <path>
+  agentpulse cli update <cli-id> --file <path>
+  agentpulse cli enable|disable <cli-id>
   agentpulse validate [--json]
 
 View

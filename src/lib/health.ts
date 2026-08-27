@@ -1,9 +1,13 @@
+import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { AppError } from "./errors.js";
 import { getGroup } from "./config.js";
 import { loadHealthState, saveHealthState } from "./state.js";
 import {
   type ApiDefinition,
+  type CliDefinition,
+  type CliProbeOutcome,
+  type CliProbeRunner,
   type ConfigPaths,
   type HealthEntry,
   type HealthError,
@@ -13,10 +17,12 @@ import {
 } from "./types.js";
 
 const DEFAULT_TTL_MS = 60 * 60 * 1000;
+const CLI_OUTPUT_TAIL_LIMIT = 240;
 const inFlight = new Map<string, Promise<Record<string, HealthSnapshot>>>();
 
 export interface HealthOptions {
   fetchImpl?: typeof fetch;
+  spawnImpl?: CliProbeRunner;
   now?: () => Date;
   ttlMs?: number;
 }
@@ -61,12 +67,14 @@ export async function getCachedHealthSnapshots(
   now = new Date()
 ): Promise<Record<string, HealthSnapshot>> {
   const state = await loadHealthState(paths);
-  return Object.fromEntries(registry.apis.map((api) => [api.id, snapshotFor(api, state, now)]));
+  return Object.fromEntries([...registry.apis, ...registry.clis].map((entry) => [entry.id, snapshotFor(entry, state, now)]));
 }
 
-function snapshotFor(api: ApiDefinition, state: HealthState, now: Date): HealthSnapshot {
-  if (!api.enabled) return { status: "disabled", checkedAt: null, expiresAt: null, isExpired: false };
-  const entry = state.entries[api.id];
+type HealthTracked = Pick<ApiDefinition, "id" | "enabled">;
+
+function snapshotFor(tracked: HealthTracked, state: HealthState, now: Date): HealthSnapshot {
+  if (!tracked.enabled) return { status: "disabled", checkedAt: null, expiresAt: null, isExpired: false };
+  const entry = state.entries[tracked.id];
   if (!entry) return { status: "unknown", checkedAt: null, expiresAt: null, isExpired: false };
   const snapshot: HealthSnapshot = {
     status: entry.status,
@@ -89,13 +97,14 @@ async function runGroupHealth(
   const ttlMs = options.ttlMs ?? DEFAULT_TTL_MS;
   const state = await loadHealthState(paths);
   const apis = registry.apis.filter((api) => api.group === groupId);
-  const results = await Promise.all(
-    apis.map(async (api) => {
+  const clis = registry.clis.filter((cli) => cli.group === groupId);
+  const results = await Promise.all([
+    ...apis.map(async (api) => {
       if (!api.enabled) return [api.id, { status: "disabled", checkedAt: null, expiresAt: null, isExpired: false } satisfies HealthSnapshot] as const;
 
       const secret = process.env[api.credential.name];
       const missingEnvironment = requiredEnvironmentNames(api).filter((name) => !process.env[name]);
-      const fingerprint = fingerprintFor(api);
+      const fingerprint = fingerprintForApi(api);
       const cached = state.entries[api.id];
       if (isCacheCurrent(cached, fingerprint, missingEnvironment.length === 0, now())) {
         return [api.id, snapshotFor(api, state, now())] as const;
@@ -104,8 +113,21 @@ async function runGroupHealth(
       const entry = await probeApi(api, secret, missingEnvironment, fingerprint, now, ttlMs, options.fetchImpl ?? fetch);
       state.entries[api.id] = entry;
       return [api.id, snapshotFor(api, state, now())] as const;
+    }),
+    ...clis.map(async (cli) => {
+      if (!cli.enabled) return [cli.id, { status: "disabled", checkedAt: null, expiresAt: null, isExpired: false } satisfies HealthSnapshot] as const;
+
+      const fingerprint = fingerprintForCli(cli);
+      const cached = state.entries[cli.id];
+      if (isCacheCurrent(cached, fingerprint, true, now())) {
+        return [cli.id, snapshotFor(cli, state, now())] as const;
+      }
+
+      const entry = await probeCli(cli, fingerprint, now, ttlMs, options.spawnImpl ?? runCliCommand);
+      state.entries[cli.id] = entry;
+      return [cli.id, snapshotFor(cli, state, now())] as const;
     })
-  );
+  ]);
 
   await saveHealthState(paths, state);
   return Object.fromEntries(results);
@@ -188,10 +210,11 @@ async function probeApi(
   }
 }
 
-function fingerprintFor(api: ApiDefinition): string {
+function fingerprintForApi(api: ApiDefinition): string {
   return createHash("sha256")
     .update(
       JSON.stringify({
+        kind: "api",
         enabled: api.enabled,
         credential: { name: api.credential.name, placement: api.credential.placement },
         environment: api.environment,
@@ -199,6 +222,99 @@ function fingerprintFor(api: ApiDefinition): string {
       })
     )
     .digest("hex");
+}
+
+function fingerprintForCli(cli: CliDefinition): string {
+  return createHash("sha256")
+    .update(JSON.stringify({ kind: "cli", enabled: cli.enabled, command: cli.command, probe: cli.probe }))
+    .digest("hex");
+}
+
+async function probeCli(
+  cli: CliDefinition,
+  fingerprint: string,
+  now: () => Date,
+  ttlMs: number,
+  runProbe: CliProbeRunner
+): Promise<HealthEntry> {
+  const startedAt = now();
+  const expiresAt = new Date(startedAt.getTime() + ttlMs).toISOString();
+  const base = { apiId: cli.id, fingerprint, checkedAt: startedAt.toISOString(), expiresAt, credentialPresent: true };
+  let outcome: CliProbeOutcome;
+  try {
+    outcome = await runProbe(cli.command, cli.probe.args, cli.probe.timeoutMs);
+  } catch (error: unknown) {
+    return { ...base, status: "unhealthy", error: executionError(error) };
+  }
+  const latencyMs = Math.max(0, now().getTime() - startedAt.getTime());
+
+  if (outcome.spawnError) {
+    if (outcome.spawnError instanceof Error && "code" in outcome.spawnError && (outcome.spawnError as NodeJS.ErrnoException).code === "ENOENT") {
+      return {
+        ...base,
+        status: "misconfigured",
+        error: { category: "command_missing", message: `The command \`${cli.command}\` is not installed or not on PATH for this process.` }
+      };
+    }
+    return { ...base, status: "unhealthy", latencyMs, error: executionError(outcome.spawnError) };
+  }
+  if (outcome.timedOut) {
+    return {
+      ...base,
+      status: "unhealthy",
+      latencyMs,
+      error: { category: "timeout", message: `The probe command \`${cli.command}\` timed out after ${cli.probe.timeoutMs} ms.` }
+    };
+  }
+  if (outcome.code === cli.probe.expectedExit) {
+    return { ...base, status: "healthy", latencyMs };
+  }
+  const tail = outcome.outputTail.trim().slice(0, CLI_OUTPUT_TAIL_LIMIT);
+  const detail = tail ? ` Output: ${tail}` : "";
+  return {
+    ...base,
+    status: "unhealthy",
+    latencyMs,
+    error: { category: "exit_code", message: `The probe command \`${cli.command}\` exited with ${outcome.code ?? "no exit code"}; expected ${cli.probe.expectedExit}.${detail}` }
+  };
+}
+
+function executionError(error: unknown): HealthError {
+  const message = error instanceof Error ? error.message : "The probe command could not be executed.";
+  return { category: "execution", message: message.slice(0, CLI_OUTPUT_TAIL_LIMIT) };
+}
+
+export function runCliCommand(command: string, args: string[], timeoutMs: number): Promise<CliProbeOutcome> {
+  return new Promise((resolve) => {
+    let child;
+    try {
+      child = spawn(command, args, { shell: false, stdio: ["ignore", "pipe", "pipe"] });
+    } catch (error: unknown) {
+      resolve({ code: null, timedOut: false, outputTail: "", spawnError: error instanceof Error ? error : new Error(String(error)) });
+      return;
+    }
+
+    let output = "";
+    const append = (chunk: Buffer): void => {
+      output = (output + chunk.toString("utf8")).slice(-1024);
+    };
+    child.stdout?.on("data", append);
+    child.stderr?.on("data", append);
+
+    const timer = setTimeout(() => {
+      child.kill("SIGKILL");
+      resolve({ code: null, timedOut: true, outputTail: output.slice(-CLI_OUTPUT_TAIL_LIMIT) });
+    }, timeoutMs);
+
+    child.on("error", (error: Error) => {
+      clearTimeout(timer);
+      resolve({ code: null, timedOut: false, outputTail: output.slice(-CLI_OUTPUT_TAIL_LIMIT), spawnError: error });
+    });
+    child.on("close", (code: number | null) => {
+      clearTimeout(timer);
+      resolve({ code, timedOut: false, outputTail: output.slice(-CLI_OUTPUT_TAIL_LIMIT) });
+    });
+  });
 }
 
 function requiredEnvironmentNames(api: ApiDefinition): string[] {

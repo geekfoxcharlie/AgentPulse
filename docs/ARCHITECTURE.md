@@ -45,7 +45,7 @@ CLI 与 Web MUST 调用同一套共享核心逻辑，不能各自实现配置解
 | 当前系统边界和数据流 | `docs/ARCHITECTURE.md` |
 | 单次迭代范围、设计与任务 | 对应 `.kiro/specs/<version>-<name>/` |
 | CLI 精确语法 | 可执行程序的 `--help`；实现前由当前 Spec 定义 |
-| 配置精确字段约束 | `schemas/group.schema.json` 与 `schemas/api.schema.json` |
+| 配置精确字段约束 | `schemas/group.schema.json`、`schemas/api.schema.json` 与 `schemas/cli.schema.json` |
 | CLI JSON 信封精确字段 | `schemas/cli-output.schema.json` |
 
 Web、CLI 展示文本和 README 都是这些来源的消费者，不能成为第二份配置或需求事实。
@@ -59,7 +59,8 @@ AgentPulse 的业务配置跨 Agent、跨工具和跨项目共享，因此运行
 ```text
 ~/.config/agentpulse/
 ├── groups/*.yaml          # 能力组配置
-└── apis/*.yaml            # 每个 API 的声明式配置
+├── apis/*.yaml            # 每个 HTTP API 的声明式配置
+└── clis/*.yaml            # 每个本地 CLI 能力的声明式配置
 
 ~/.local/state/agentpulse/
 └── health-cache.json      # 可丢弃并重新生成的健康状态
@@ -96,6 +97,20 @@ API 条目由以下概念组成：
 
 API 配置只保存引用和说明，不保存凭据值。精确字段由 [`schemas/api.schema.json`](../schemas/api.schema.json) 定义。
 
+### 5.2.1 CLI 能力条目
+
+CLI 能力条目描述一台机器上已安装的命令行工具，由以下概念组成：
+
+- 身份：ID、名称、描述、启用状态；
+- 分类：能力组 ID；
+- 命令：不含空白的可执行命令，经 `PATH` 或绝对路径解析；
+- 出处：安装方式与安装命令（本机元信息，等价于 API 的 `configuredAt`）；
+- 文档地址；
+- 用法：适用场景、限制、可执行示例；
+- 探测：子命令参数、期望退出码和超时时间。
+
+CLI 能力不声明 HTTP 服务、凭据或环境变量需求。精确字段由 [`schemas/cli.schema.json`](../schemas/cli.schema.json) 定义。健康探测直接运行该命令（不经过 shell），命令不存在映射为 `misconfigured`，其余失败映射为 `unhealthy`。
+
 ### 5.3 内置模板
 
 AgentPulse 可以随程序发布常见 API 的内置模板，以减少 Agent 重复填写公开且稳定的端点、认证方式、用法和最小探测定义。
@@ -104,7 +119,7 @@ AgentPulse 可以随程序发布常见 API 的内置模板，以减少 Agent 重
 
 因此，模板更新不能静默改变已有用户配置。需要同步上游变化时，必须由 Agent 发起显式更新并经过正常校验和缓存失效流程。
 
-内置 `search` 目录只收录可由 Agent 直接调用并返回机器可读结果的独立搜索 API。模型内建的服务端搜索工具不属于该目录；X 帖子搜索使用 X API 的直接端点。`image-generation` 目录提供通过 Cloudflare AI Gateway 调用的 GPT Image 2 模板。当前人工筛选的模板名称属于[产品需求](REQUIREMENTS.md#r11内置独立搜索目录)和 [R1.2](REQUIREMENTS.md#r12cloudflare-ai-gateway-图像生成目录)，而精确端点、凭据引用和最小探测属于各模板 YAML 的唯一事实来源。图像模板的健康探测必须采用非生成性端点，避免状态检查产生推理费用。当前模板目录的增量与验收条件分别由 [0.1 MVP Spec](../.kiro/specs/0.1-mvp/requirements.md) 和 [Cloudflare image-generation Spec](../.kiro/specs/0.2-cloudflare-image-generation/requirements.md) 维护。
+内置 `search` 目录只收录可由 Agent 直接调用并返回机器可读结果的独立搜索 API。模型内建的服务端搜索工具不属于该目录；X 帖子搜索使用 X API 的直接端点。`image-generation` 目录提供通过 Cloudflare AI Gateway 调用的 GPT Image 2 模板。`browser` 目录提供本地 CLI 能力模板（如 `browser-harness`）。当前人工筛选的模板名称属于[产品需求](REQUIREMENTS.md#r11内置独立搜索目录)和 [R1.2](REQUIREMENTS.md#r12cloudflare-ai-gateway-图像生成目录)，而精确端点、凭据引用和最小探测属于各模板 YAML 的唯一事实来源。图像模板的健康探测必须采用非生成性端点，避免状态检查产生推理费用；CLI 模板的健康探测必须是被动检查。当前模板目录的增量与验收条件分别由 [0.1 MVP Spec](../.kiro/specs/0.1-mvp/requirements.md)、[Cloudflare image-generation Spec](../.kiro/specs/0.2-cloudflare-image-generation/requirements.md) 和 [CLI Capabilities Spec](../.kiro/specs/0.3-cli-capabilities/requirements.md) 维护。
 
 ## 6. Agent 查询流程
 
@@ -127,6 +142,7 @@ CLI 默认输出面向人，JSON 模式面向 Agent。两种输出必须来自�
 agentpulse groups [--json]
 agentpulse group <group-id> [--health] [--json]
 agentpulse api <api-id> [--json]
+agentpulse cli <cli-id> [--json]
 agentpulse templates [--group <group-id>] [--json]
 agentpulse group add --file <path>
 agentpulse group update <group-id> --file <path>
@@ -134,6 +150,10 @@ agentpulse api add --template <template-id> --configured-at ~/.zshenv [--credent
 agentpulse api add --file <path>
 agentpulse api update <api-id> --file <path>
 agentpulse api enable|disable <api-id>
+agentpulse cli add --template <template-id>
+agentpulse cli add --file <path>
+agentpulse cli update <cli-id> --file <path>
+agentpulse cli enable|disable <cli-id>
 agentpulse validate [--json]
 agentpulse context [--json]
 agentpulse web [--port <port>]

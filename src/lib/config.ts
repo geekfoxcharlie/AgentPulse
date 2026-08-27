@@ -7,6 +7,7 @@ import { invalidateHealthEntry, atomicWrite } from "./state.js";
 import {
   SCHEMA_VERSION,
   type ApiDefinition,
+  type CliDefinition,
   type ConfigPaths,
   type CredentialPlacement,
   type EnvironmentRequirement,
@@ -20,17 +21,27 @@ import {
 type UnknownRecord = Record<string, unknown>;
 
 export async function loadRegistry(paths: ConfigPaths): Promise<Registry> {
-  const [groupFiles, apiFiles] = await Promise.all([readYamlFiles(paths.groupsDir), readYamlFiles(paths.apisDir)]);
+  const [groupFiles, apiFiles, cliFiles] = await Promise.all([
+    readYamlFiles(paths.groupsDir),
+    readYamlFiles(paths.apisDir),
+    readYamlFiles(paths.clisDir)
+  ]);
   const groups = groupFiles.map(({ value, source }) => validateGroup(value, source));
   const apis = apiFiles.map(({ value, source }) => validateApi(value, source));
-  validateRegistryData({ groups, apis });
-  return { groups: groups.sort(compareByOrderThenName), apis: apis.sort((left, right) => left.name.localeCompare(right.name)) };
+  const clis = cliFiles.map(({ value, source }) => validateCli(value, source));
+  validateRegistryData({ groups, apis, clis });
+  return {
+    groups: groups.sort(compareByOrderThenName),
+    apis: apis.sort((left, right) => left.name.localeCompare(right.name)),
+    clis: clis.sort((left, right) => left.name.localeCompare(right.name))
+  };
 }
 
 export function validateRegistryData(registry: Registry): void {
   const issues: Array<{ path: string; message: string }> = [];
   const groupIds = new Set<string>();
   const apiIds = new Set<string>();
+  const cliIds = new Set<string>();
 
   for (const group of registry.groups) {
     if (groupIds.has(group.id)) issues.push({ path: `groups.${group.id}`, message: "Duplicate group ID." });
@@ -42,6 +53,17 @@ export function validateRegistryData(registry: Registry): void {
     apiIds.add(api.id);
     if (!groupIds.has(api.group)) {
       issues.push({ path: `apis.${api.id}.group`, message: `Unknown group ID: ${api.group}.` });
+    }
+  }
+
+  for (const cli of registry.clis) {
+    if (cliIds.has(cli.id)) issues.push({ path: `clis.${cli.id}`, message: "Duplicate CLI capability ID." });
+    cliIds.add(cli.id);
+    if (apiIds.has(cli.id)) {
+      issues.push({ path: `clis.${cli.id}.id`, message: `ID is already used by an API: ${cli.id}.` });
+    }
+    if (!groupIds.has(cli.group)) {
+      issues.push({ path: `clis.${cli.id}.group`, message: `Unknown group ID: ${cli.group}.` });
     }
   }
 
@@ -73,10 +95,18 @@ export async function addOrUpdateApiFromFile(paths: ConfigPaths, filePath: strin
   return upsertApi(paths, api);
 }
 
+export async function addOrUpdateCliFromFile(paths: ConfigPaths, filePath: string, expectedId?: string): Promise<CliDefinition> {
+  const cli = validateCli(await parseConfigFile(filePath), filePath);
+  if (expectedId && cli.id !== expectedId) {
+    throw new AppError("id_mismatch", `CLI capability file ID ${cli.id} does not match requested ID ${expectedId}.`);
+  }
+  return upsertCli(paths, cli);
+}
+
 export async function upsertGroup(paths: ConfigPaths, group: GroupDefinition): Promise<GroupDefinition> {
   const registry = await loadRegistry(paths);
   const groups = replaceById(registry.groups, group);
-  validateRegistryData({ groups, apis: registry.apis });
+  validateRegistryData({ groups, apis: registry.apis, clis: registry.clis });
   await atomicWrite(join(paths.groupsDir, `${group.id}.yaml`), stringify(group));
   return group;
 }
@@ -84,10 +114,33 @@ export async function upsertGroup(paths: ConfigPaths, group: GroupDefinition): P
 export async function upsertApi(paths: ConfigPaths, api: ApiDefinition): Promise<ApiDefinition> {
   const registry = await loadRegistry(paths);
   const apis = replaceById(registry.apis, api);
-  validateRegistryData({ groups: registry.groups, apis });
+  validateRegistryData({ groups: registry.groups, apis, clis: registry.clis });
   await atomicWrite(join(paths.apisDir, `${api.id}.yaml`), stringify(api));
   await invalidateHealthEntry(paths, api.id);
   return api;
+}
+
+export async function upsertCli(paths: ConfigPaths, cli: CliDefinition): Promise<CliDefinition> {
+  const registry = await loadRegistry(paths);
+  const clis = replaceById(registry.clis, cli);
+  validateRegistryData({ groups: registry.groups, apis: registry.apis, clis });
+  await atomicWrite(join(paths.clisDir, `${cli.id}.yaml`), stringify(cli));
+  await invalidateHealthEntry(paths, cli.id);
+  return cli;
+}
+
+export async function setCliEnabled(paths: ConfigPaths, cliId: string, enabled: boolean): Promise<CliDefinition> {
+  const registry = await loadRegistry(paths);
+  const current = registry.clis.find((cli) => cli.id === cliId);
+  if (!current) throw new AppError("not_found", `No configured CLI capability with ID ${cliId}.`);
+  return upsertCli(paths, { ...current, enabled });
+}
+
+export async function getCli(paths: ConfigPaths, cliId: string): Promise<CliDefinition> {
+  const registry = await loadRegistry(paths);
+  const cli = registry.clis.find((entry) => entry.id === cliId);
+  if (!cli) throw new AppError("not_found", `No configured CLI capability with ID ${cliId}.`);
+  return cli;
 }
 
 export async function setApiEnabled(paths: ConfigPaths, apiId: string, enabled: boolean): Promise<ApiDefinition> {
@@ -149,6 +202,57 @@ export function validateApi(value: unknown, source = "api"): ApiDefinition {
   if (environment) api.environment = environment;
   validateEnvironmentPlaceholders(api, source);
   return api;
+}
+
+export function validateCli(value: unknown, source = "cli"): CliDefinition {
+  validateSchema("cli", value, source);
+  const input = asRecord(value, source);
+  assertSchemaVersion(input, source);
+  assertLiteral(input, "kind", "cli", source);
+  return {
+    schemaVersion: SCHEMA_VERSION,
+    kind: "cli",
+    id: requiredId(input, "id", source),
+    name: requiredString(input, "name", source),
+    group: requiredId(input, "group", source),
+    description: requiredString(input, "description", source),
+    enabled: requiredBoolean(input, "enabled", source),
+    command: requiredCommand(input, "command", source),
+    docsUrl: requiredUrl(input, "docsUrl", source),
+    install: validateCliInstall(input.install, `${source}.install`),
+    probe: validateCliProbe(input.probe, `${source}.probe`),
+    usage: validateUsage(input.usage, `${source}.usage`)
+  };
+}
+
+function validateCliInstall(value: unknown, source: string): CliDefinition["install"] {
+  const input = asRecord(value, source);
+  return {
+    method: requiredId(input, "method", source),
+    command: requiredString(input, "command", source)
+  };
+}
+
+function validateCliProbe(value: unknown, source: string): CliDefinition["probe"] {
+  const input = asRecord(value, source);
+  assertLiteral(input, "type", "cli", source);
+  const args = input.args;
+  if (!Array.isArray(args) || args.some((item) => typeof item !== "string")) {
+    throw invalid(`${source}.args`, "must be an array of strings.");
+  }
+  const expectedExit = input.expectedExit;
+  if (typeof expectedExit !== "number" || !Number.isInteger(expectedExit)) {
+    throw invalid(`${source}.expectedExit`, "must be an integer.");
+  }
+  const timeoutMs = optionalNumber(input, "timeoutMs", source);
+  if (timeoutMs === undefined) throw invalid(`${source}.timeoutMs`, "must be a positive number.");
+  return { type: "cli", args: [...args], expectedExit, timeoutMs };
+}
+
+function requiredCommand(input: UnknownRecord, key: string, source: string): string {
+  const value = requiredString(input, key, source);
+  if (/\s/.test(value)) throw invalid(`${source}.${key}`, "must be a single executable name or path without whitespace.");
+  return value;
 }
 
 export function validateService(value: unknown, source: string): ApiDefinition["service"] {

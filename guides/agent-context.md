@@ -4,15 +4,16 @@ AgentPulse is installed on this machine. It provides local agents with informati
 
 ## Rule
 
-Before using an external API, check AgentPulse first:
+Before using an external API or local CLI capability, check AgentPulse first:
 
 ```bash
 agentpulse groups --json
 agentpulse group <group-id> --health --json
 agentpulse api <api-id> --json
+agentpulse cli <cli-id> --json
 ```
 
-Then choose an appropriate configured API and call that provider directly. AgentPulse supplies API information; it does not proxy the request or choose the API for you.
+Then choose an appropriate configured API or CLI capability and call the provider or command directly. AgentPulse supplies capability information; it does not proxy requests or choose for you.
 
 ## Examples
 
@@ -28,8 +29,12 @@ agentpulse group image-generation --health --json
 
 # Get the Cloudflare GPT Image 2 gateway request contract
 agentpulse api cloudflare-gpt-image-2 --json
+
+# Get the local browser automation capability and its passive health status
+agentpulse group browser --health --json
+agentpulse cli browser-harness --json
 ```
 
-Use this flow for tasks such as web research, news or article discovery, X post search, image generation, and finding topic-related resources. Check AgentPulse before asking the user to provide a new API key.
+Use this flow for tasks such as web research, news or article discovery, X post search, image generation, finding topic-related resources, and browser automation. Check AgentPulse before asking the user to provide a new API key or install a new tool.
 
 Project: https://github.com/geekfoxcharlie/AgentPulse

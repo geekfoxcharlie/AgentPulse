@@ -1,0 +1,48 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://agentpulse.local/schemas/cli.schema.json",
+  "title": "AgentPulse CLI capability configuration",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "kind", "id", "name", "group", "description", "enabled", "command", "docsUrl", "install", "probe", "usage"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "kind": { "const": "cli" },
+    "id": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+    "name": { "type": "string", "minLength": 1 },
+    "group": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+    "description": { "type": "string", "minLength": 1 },
+    "enabled": { "type": "boolean" },
+    "command": { "type": "string", "minLength": 1, "pattern": "^\\S+$" },
+    "docsUrl": { "type": "string", "minLength": 1 },
+    "install": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["method", "command"],
+      "properties": {
+        "method": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+        "command": { "type": "string", "minLength": 1 }
+      }
+    },
+    "probe": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "args", "expectedExit", "timeoutMs"],
+      "properties": {
+        "type": { "const": "cli" },
+        "args": { "type": "array", "items": { "type": "string" } },
+        "expectedExit": { "type": "integer" },
+        "timeoutMs": { "type": "number", "exclusiveMinimum": 0 }
+      }
+    },
+    "usage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["notes", "example"],
+      "properties": {
+        "notes": { "type": "string", "minLength": 1 },
+        "example": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}

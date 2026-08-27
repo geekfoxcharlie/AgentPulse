@@ -1,0 +1,6 @@
+schemaVersion: 1
+kind: group-template
+id: browser
+name: Browser
+description: Local browser-automation capabilities exposed through installed command-line tools.
+order: 30

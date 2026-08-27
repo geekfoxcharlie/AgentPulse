@@ -84,6 +84,19 @@ AgentPulse MUST 假设在同一操作系统用户下运行的本地 Agent 是可
 
 该模板的最小健康检查 MUST 使用不调用模型的 `GET /accounts/{account_id}/ai-gateway/gateways`，验证 `success` 和 `result` 字段。调用说明 MUST 区分此非生成性检查与真实图像推理：前者需要 `AI Gateway > Read`，后者还需要 `Workers AI > Read` 和足够的可用额度；完整的 Cloudflare Gateway 设置按官方建议同时授予 `AI Gateway > Edit`。`openai/gpt-image-2` 属于第三方模型，默认路由到帐户的 default gateway；其 REST 推理响应使用外层 `{ success, result }` 包装，完成态位于 `result.state`，图像 URL 位于 `result.result.image`。
 
+### R1.3：本地 CLI 能力
+
+除 HTTP API 外，系统 MUST 支持把已安装在本机的命令行工具登记为 `cli` 能力，至少记录：
+
+- 稳定且唯一的 ID（与 API ID 共用一个命名空间，不得冲突）、名称、描述和所属能力组；
+- 可执行命令（不含空白，经由 `PATH` 或绝对路径解析）；
+- 官方文档地址与安装来源（安装方式和安装命令，作为本机出处元信息）；
+- 启用状态和调用说明。
+
+CLI 能力 MUST NOT 声明 HTTP 服务地址、凭据引用或环境变量需求。其最小健康检查 MUST 以声明参数直接运行该命令（不经过 shell）、在超时时间内比较退出码：可执行文件不存在视为 `misconfigured`，其余失败视为 `unhealthy`。健康探测 MUST 是只读的被动检查，MUST NOT 安装、升级、修复或产生其他副作用。
+
+内置 `browser` 目录 MUST 提供 `browser-harness` CLI 模板，其健康检查 MUST 使用被动的 `doctor --json` 子命令，不得启动浏览器或守护进程。
+
 ### R2：凭据元信息
 
 AgentPulse MUST 记录凭据的环境变量名、配置位置和请求注入方式，但 MUST NOT 把真实密钥值作为 API 配置的一部分保存。

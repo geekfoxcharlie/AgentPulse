@@ -1,0 +1,25 @@
+schemaVersion: 1
+kind: cli-template
+id: browser-harness
+name: Browser Harness
+group: browser
+description: Drive the user's real Chrome profile, including logged-in sessions, through an editable CDP harness CLI.
+enabled: true
+command: browser-harness
+docsUrl: https://github.com/browser-use/browser-harness
+install:
+  method: uv-tool
+  command: uv tool install --python 3.12 --upgrade --force browser-harness
+probe:
+  type: cli
+  args: ["doctor", "--json"]
+  expectedExit: 0
+  timeoutMs: 15000
+usage:
+  notes: |
+    Use for any web task that needs the real browser: logged-in sessions, JavaScript rendering, clicking, typing, scrolling, downloads, and bot-protected pages. A plain HTTP request that can read a public page or API should use curl or a search API instead. Python helpers (page_info, new_tab, click_at_xy, js) are pre-imported into each heredoc script. The health probe runs `doctor --json`, a read-only check of the installed version, daemon liveness, and its CDP connection; it never launches a browser or repairs anything.
+  example: |
+    browser-harness <<'PY'
+    ensure_real_tab()
+    print(page_info())
+    PY

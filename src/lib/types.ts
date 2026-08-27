@@ -49,6 +49,37 @@ export interface ProbeDefinition {
   timeoutMs: number;
 }
 
+export interface CliProbeDefinition {
+  type: "cli";
+  args: string[];
+  expectedExit: number;
+  timeoutMs: number;
+}
+
+export interface CliInstallReference {
+  method: string;
+  command: string;
+}
+
+export interface CliDefinition {
+  schemaVersion: typeof SCHEMA_VERSION;
+  kind: "cli";
+  id: string;
+  name: string;
+  group: string;
+  description: string;
+  enabled: boolean;
+  command: string;
+  docsUrl: string;
+  install: CliInstallReference;
+  probe: CliProbeDefinition;
+  usage: UsageDefinition;
+}
+
+export interface CliTemplate extends Omit<CliDefinition, "kind"> {
+  kind: "cli-template";
+}
+
 export interface UsageDefinition {
   notes: string;
   example: string;
@@ -96,6 +127,7 @@ export interface ApiTemplate extends Omit<ApiDefinition, "kind" | "credential" |
 export interface Registry {
   groups: GroupDefinition[];
   apis: ApiDefinition[];
+  clis: CliDefinition[];
 }
 
 export type HealthStatus = "healthy" | "unhealthy" | "misconfigured" | "disabled" | "unknown";
@@ -103,15 +135,27 @@ export type HealthStatus = "healthy" | "unhealthy" | "misconfigured" | "disabled
 export interface HealthError {
   category:
     | "credential_missing"
+    | "command_missing"
     | "authentication"
     | "rate_limited"
     | "http"
+    | "exit_code"
     | "timeout"
     | "network"
+    | "execution"
     | "response_validation";
   message: string;
   statusCode?: number;
 }
+
+export interface CliProbeOutcome {
+  code: number | null;
+  timedOut: boolean;
+  outputTail: string;
+  spawnError?: Error;
+}
+
+export type CliProbeRunner = (command: string, args: string[], timeoutMs: number) => Promise<CliProbeOutcome>;
 
 export interface HealthEntry {
   apiId: string;
@@ -142,6 +186,7 @@ export interface ConfigPaths {
   configDir: string;
   groupsDir: string;
   apisDir: string;
+  clisDir: string;
   stateDir: string;
   healthCachePath: string;
 }

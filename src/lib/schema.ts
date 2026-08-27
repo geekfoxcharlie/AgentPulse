@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 import { Ajv, type AnySchema, type ErrorObject, type ValidateFunction } from "ajv";
 import { AppError } from "./errors.js";
 
-type SchemaName = "group" | "api" | "cli-output";
+type SchemaName = "group" | "api" | "cli" | "cli-output";
 
 const ajv = new Ajv({ allErrors: true, strict: false });
 const validators = new Map<SchemaName, ValidateFunction>();
