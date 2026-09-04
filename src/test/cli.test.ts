@@ -16,7 +16,8 @@ test("CLI exposes templates, materializes an API, and returns a structured missi
     const templates = await run(process.execPath, [cliPath, "templates", "--group", "search", "--json"], { env });
     const templateEnvelope = JSON.parse(templates.stdout) as { schemaVersion: number; data: { templates: Array<{ id: string }> } };
     assert.equal(templateEnvelope.schemaVersion, 1);
-    assert.equal(templateEnvelope.data.templates.length, 6);
+    assert.equal(templateEnvelope.data.templates.length, 7);
+    assert.ok(templateEnvelope.data.templates.some((template) => template.id === "github-repository-search"));
 
     const context = await run(process.execPath, [cliPath, "context", "--json"], { env });
     const contextEnvelope = JSON.parse(context.stdout) as { data: { text: string } };

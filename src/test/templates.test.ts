@@ -36,6 +36,7 @@ test("built-in templates cover the search catalog and Cloudflare image generatio
     "cloudflare-gpt-image-2",
     "exa-search",
     "firecrawl-search",
+    "github-repository-search",
     "serper-google-search",
     "tavily-search",
     "x-api-search-posts"
@@ -72,6 +73,19 @@ test("built-in templates cover the search catalog and Cloudflare image generatio
   assert.equal(new URL(firecrawl.url).pathname, "/v2/search");
   assert.equal(new Headers(firecrawl.init.headers).get("Authorization"), "Bearer test-secret");
   assert.match(String(firecrawl.init.body), /"limit":1/);
+
+  const github = requests["github-repository-search"];
+  assert.ok(github);
+  assert.equal(github.init.method, "GET");
+  assert.equal(new URL(github.url).hostname, "api.github.com");
+  assert.equal(new URL(github.url).pathname, "/rate_limit");
+  assert.equal(new Headers(github.init.headers).get("Authorization"), "Bearer test-secret");
+  assert.equal(new Headers(github.init.headers).get("Accept"), "application/vnd.github+json");
+  assert.equal(new Headers(github.init.headers).get("X-GitHub-Api-Version"), "2026-03-10");
+  assert.equal(github.init.body, undefined);
+  const githubTemplate = catalog.apis.find((template) => template.id === "github-repository-search");
+  assert.ok(githubTemplate);
+  assert.deepEqual(githubTemplate.probe.assertions, [{ path: "resources.search", exists: true }]);
 
   const serper = requests["serper-google-search"];
   assert.ok(serper);

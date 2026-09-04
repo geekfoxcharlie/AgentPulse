@@ -6,7 +6,7 @@ Agents query and configure AgentPulse through its CLI, then call third-party API
 
 ## Project status
 
-The 0.1 MVP is implemented. Register locally available API keys, tokens, and required account identifiers as environment variables to run real health checks. The built-in catalog includes Exa, Firecrawl Search, Tavily, X API Search Posts, Serper, Brave Search, Cloudflare GPT Image 2, and the browser-harness CLI for driving the local Chrome profile. See the [0.1 MVP Spec](.kiro/specs/0.1-mvp/requirements.md), the [Cloudflare image-generation spec](.kiro/specs/0.2-cloudflare-image-generation/requirements.md), and the [CLI capabilities spec](.kiro/specs/0.3-cli-capabilities/requirements.md) for scope and local setup steps.
+The 0.1 MVP is implemented. Register locally available API keys, tokens, and required account identifiers as environment variables to run real health checks. The built-in catalog includes Exa, Firecrawl Search, Tavily, X API Search Posts, Serper, Brave Search, GitHub Repository Search, Cloudflare GPT Image 2, and the browser-harness CLI for driving the local Chrome profile. See the [0.1 MVP Spec](.kiro/specs/0.1-mvp/requirements.md), the [Cloudflare image-generation spec](.kiro/specs/0.2-cloudflare-image-generation/requirements.md), the [CLI capabilities spec](.kiro/specs/0.3-cli-capabilities/requirements.md), and the [GitHub repository-search spec](.kiro/specs/0.4-github-repository-search/requirements.md) for scope and local setup steps.
 
 ## Quick start
 
@@ -24,6 +24,14 @@ agentpulse web
 ```
 
 Before registering a template, find where the current system setup provides its environment variables and pass that location as metadata. AgentPulse never sources, reads, or writes that location; the variables must already be available to the CLI process.
+
+For GitHub repository search, make a `GITHUB_TOKEN` available to the current process, then register the template. Its health check uses GitHub's `/rate_limit` endpoint rather than consuming the stricter repository-search rate limit:
+
+```bash
+agentpulse api add --template github-repository-search --configured-at ~/.zshenv
+agentpulse group search --health --json
+agentpulse api github-repository-search --json
+```
 
 For Cloudflare GPT Image 2, make both `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` available to the current process, then register the template and inspect it like a search API:
 

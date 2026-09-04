@@ -72,11 +72,14 @@ AgentPulse MUST 假设在同一操作系统用户下运行的本地 Agent 是可
 - Tavily Search；
 - X API Search Posts；
 - Serper Google Search；
-- Brave Search。
+- Brave Search；
+- GitHub Repository Search。
 
 这里的“独立”是指 Agent 可以直接向服务的数据 API 发送请求并获得机器可读搜索结果；目录 MUST NOT 把必须经由语言模型调用的服务端搜索工具作为独立搜索 API 模板提供。
 
 该目录是经过人工研究后维护的候选集合，不构成运行时的质量排名或自动路由规则。Brave Search 保留为独立索引选项，但本机 Agent 在依赖它前 SHOULD 先查询其缓存健康状态。用户或可信 Agent 仍可以通过 CLI 登记其他 API；它们不因此成为内置推荐目录的一部分。
+
+GitHub Repository Search 模板 MUST 使用 GitHub REST `GET /search/repositories`，以 `GITHUB_TOKEN` Bearer 认证作为默认安全配置，并在调用说明中覆盖 GitHub 查询限定符、`incomplete_results`、最多 1,000 条结果及限流重试要求。健康检查 MUST 调用不执行搜索的 `GET /rate_limit`，并验证 `resources.search` 存在；它不得把健康状态表述为搜索结果质量或完整性的保证。
 
 ### R1.2：Cloudflare AI Gateway 图像生成目录
 

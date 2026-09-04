@@ -77,6 +77,32 @@ test("simultaneous group checks share a single in-process probe", async () => {
   });
 });
 
+test("GitHub repository search uses a non-search rate-limit health probe", async () => {
+  await withTempPaths(async (paths) => {
+    await instantiateApiTemplate(paths, "github-repository-search", "~/.zshenv");
+    let requestCount = 0;
+    const fakeFetch: typeof fetch = async (input, init) => {
+      requestCount += 1;
+      const url = new URL(String(input));
+      assert.equal(url.origin, "https://api.github.com");
+      assert.equal(url.pathname, "/rate_limit");
+      assert.equal(url.search, "");
+      const headers = new Headers(init?.headers);
+      assert.equal(headers.get("Authorization"), "Bearer token-for-test");
+      assert.equal(headers.get("Accept"), "application/vnd.github+json");
+      assert.equal(headers.get("X-GitHub-Api-Version"), "2026-03-10");
+      assert.equal(init?.body, undefined);
+      return new Response(JSON.stringify({ resources: { search: { limit: 30, remaining: 30, reset: 0, used: 0 } } }), { status: 200 });
+    };
+
+    await withEnvironment("GITHUB_TOKEN", "token-for-test", async () => {
+      const result = await checkGroupHealth(await loadRegistry(paths), "search", paths, { fetchImpl: fakeFetch });
+      assert.equal(result["github-repository-search"]?.status, "healthy");
+      assert.equal(requestCount, 1);
+    });
+  });
+});
+
 test("Cloudflare GPT Image 2 uses a non-generative AI Gateway probe and requires both local variables", async () => {
   await withTempPaths(async (paths) => {
     await instantiateApiTemplate(paths, "cloudflare-gpt-image-2", "~/.zshenv");

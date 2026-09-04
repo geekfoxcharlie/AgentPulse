@@ -1,0 +1,38 @@
+schemaVersion: 1
+kind: api-template
+id: github-repository-search
+name: GitHub Repository Search
+group: search
+description: Official GitHub REST repository search with structured repository metadata and GitHub search qualifiers.
+enabled: true
+service:
+  baseUrl: https://api.github.com
+  docsUrl: https://docs.github.com/en/rest/search/search#search-repositories
+credential:
+  type: environment
+  defaultName: GITHUB_TOKEN
+  placement:
+    type: bearer
+probe:
+  method: GET
+  url: https://api.github.com/rate_limit
+  headers:
+    Accept: application/vnd.github+json
+    X-GitHub-Api-Version: 2026-03-10
+  expectedStatus: [200]
+  assertions:
+    - path: resources.search
+      exists: true
+  timeoutMs: 10000
+usage:
+  notes: >-
+    Use for first-party GitHub repository discovery. Search GET /search/repositories with a URL-encoded q value and qualifiers such as language:, stars:, pushed:, org:, topic:, license:, and archived:. Authenticated search is limited to 30 requests per minute; unauthenticated public-only search is limited to 10 per minute. Respect 403/429 retry headers, treat incomplete_results: true as a partial result, and note that a search returns at most 1,000 results. A fine-grained token needs no additional permission for this endpoint, but only returns repositories visible to that token. The health probe calls /rate_limit instead of running a search, so it does not consume the primary search quota; it can still count toward GitHub secondary limits.
+  example: |
+    curl -s --get "https://api.github.com/search/repositories" \
+      -H "Accept: application/vnd.github+json" \
+      -H "Authorization: Bearer $GITHUB_TOKEN" \
+      -H "X-GitHub-Api-Version: 2026-03-10" \
+      --data-urlencode "q=agent framework language:typescript stars:>=100 pushed:>=2025-01-01 archived:false" \
+      --data-urlencode "sort=stars" \
+      --data-urlencode "order=desc" \
+      --data-urlencode "per_page=10"
