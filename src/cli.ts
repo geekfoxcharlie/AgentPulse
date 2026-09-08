@@ -3,7 +3,7 @@ import { addOrUpdateApiFromFile, addOrUpdateCliFromFile, addOrUpdateGroupFromFil
 import { agentContext } from "./lib/context.js";
 import { asAppError, AppError } from "./lib/errors.js";
 import { checkGroupHealth, getCachedHealthSnapshots } from "./lib/health.js";
-import { resolvePaths } from "./lib/paths.js";
+import { resolvePathSources, resolvePaths } from "./lib/paths.js";
 import { apiView, cliView, groupView, groupsView } from "./lib/query.js";
 import { instantiateApiTemplate, instantiateCliTemplate, loadTemplateCatalog } from "./lib/templates.js";
 import { SCHEMA_VERSION, type CliEnvelope } from "./lib/types.js";
@@ -23,6 +23,36 @@ async function main(): Promise<void> {
     }
     if (command === "context") {
       printSuccess("context", { text: agentContext() }, json);
+      return;
+    }
+    if (command === "status") {
+      const sources = resolvePathSources();
+      let groups = 0;
+      let apis = 0;
+      let clis = 0;
+      try {
+        const registry = await loadRegistry(paths);
+        groups = registry.groups.length;
+        apis = registry.apis.length;
+        clis = registry.clis.length;
+      } catch {
+        // empty or unreadable config still reports paths
+      }
+      printSuccess("status", {
+        configDir: paths.configDir,
+        stateDir: paths.stateDir,
+        source: sources,
+        env: {
+          AGENTPULSE_CONFIG_DIR: process.env.AGENTPULSE_CONFIG_DIR ?? null,
+          AGENTPULSE_STATE_DIR: process.env.AGENTPULSE_STATE_DIR ?? null,
+          XDG_CONFIG_HOME: process.env.XDG_CONFIG_HOME ?? null,
+          XDG_STATE_HOME: process.env.XDG_STATE_HOME ?? null
+        },
+        webPort: 4123,
+        groups,
+        apis,
+        clis
+      }, json);
       return;
     }
     if (command === "groups") {
@@ -223,6 +253,25 @@ function printError(command: string, error: AppError, json: boolean): void {
 
 function renderHuman(command: string, data: unknown): string {
   if (command === "context") return (data as { text: string }).text;
+  if (command === "status") {
+    const status = data as {
+      configDir: string;
+      stateDir: string;
+      source: { config: string; state: string };
+      webPort: number;
+      groups: number;
+      apis: number;
+      clis: number;
+    };
+    return [
+      `configDir  ${status.configDir} (${status.source.config})`,
+      `stateDir   ${status.stateDir} (${status.source.state})`,
+      `web        http://127.0.0.1:${status.webPort}`,
+      `groups     ${status.groups}`,
+      `apis       ${status.apis}`,
+      `clis       ${status.clis}`
+    ].join("\n");
+  }
   if (command === "groups") {
     const groups = data as Awaited<ReturnType<typeof groupsView>>;
     return groups.length === 0 ? "No configured groups. Run `agentpulse templates`." : groups.map((group) => `${group.id}\t${group.name}\t${group.apiCount} APIs, ${group.cliCount} CLIs\t${group.health.healthy} healthy / ${group.health.unhealthy} unhealthy / ${group.health.misconfigured} needs configuration`).join("\n");
@@ -267,6 +316,7 @@ Query
   agentpulse cli <cli-id> [--json]
   agentpulse templates [--group <group-id>] [--json]
   agentpulse context [--json]
+  agentpulse status [--json]
 
 Configure
   agentpulse group add --file <path>

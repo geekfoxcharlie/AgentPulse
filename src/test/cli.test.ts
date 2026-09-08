@@ -23,6 +23,13 @@ test("CLI exposes templates, materializes an API, and returns a structured missi
     const contextEnvelope = JSON.parse(context.stdout) as { data: { text: string } };
     assert.match(contextEnvelope.data.text, /agentpulse groups --json/);
 
+    const status = await run(process.execPath, [cliPath, "status", "--json"], { env });
+    const statusEnvelope = JSON.parse(status.stdout) as {
+      data: { configDir: string; stateDir: string; source: { config: string; state: string }; groups: number };
+    };
+    assert.equal(statusEnvelope.data.configDir, paths.configDir);
+    assert.equal(statusEnvelope.data.source.config, "env");
+
     const add = await run(
       process.execPath,
       [cliPath, "api", "add", "--template", "brave-search", "--configured-at", "~/.zshenv", "--json"],

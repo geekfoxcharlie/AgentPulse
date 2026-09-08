@@ -7,6 +7,15 @@ export interface PathOverrides {
   stateDir?: string;
 }
 
+export type PathSource = "flag" | "env" | "xdg";
+
+export function resolvePathSources(overrides: PathOverrides = {}, env: NodeJS.ProcessEnv = process.env): { config: PathSource; state: PathSource } {
+  return {
+    config: overrides.configDir ? "flag" : env.AGENTPULSE_CONFIG_DIR ? "env" : "xdg",
+    state: overrides.stateDir ? "flag" : env.AGENTPULSE_STATE_DIR ? "env" : "xdg"
+  };
+}
+
 export function resolvePaths(overrides: PathOverrides = {}, env: NodeJS.ProcessEnv = process.env): ConfigPaths {
   const home = homedir();
   const configDir = overrides.configDir ?? env.AGENTPULSE_CONFIG_DIR ?? join(env.XDG_CONFIG_HOME ?? join(home, ".config"), "agentpulse");

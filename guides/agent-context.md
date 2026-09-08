@@ -7,6 +7,7 @@ AgentPulse is installed on this machine. It provides local agents with informati
 Before using an external API or local CLI capability, check AgentPulse first:
 
 ```bash
+agentpulse status --json
 agentpulse groups --json
 agentpulse group <group-id> --health --json
 agentpulse api <api-id> --json
