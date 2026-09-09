@@ -15,25 +15,30 @@ import {
   type HttpMethod,
   type ProbeAssertion,
   type ProbeDefinition,
-  type Registry
+  type Registry,
+  type SiteDefinition,
+  type SiteLoginDefinition
 } from "./types.js";
 
 type UnknownRecord = Record<string, unknown>;
 
 export async function loadRegistry(paths: ConfigPaths): Promise<Registry> {
-  const [groupFiles, apiFiles, cliFiles] = await Promise.all([
+  const [groupFiles, apiFiles, cliFiles, siteFiles] = await Promise.all([
     readYamlFiles(paths.groupsDir),
     readYamlFiles(paths.apisDir),
-    readYamlFiles(paths.clisDir)
+    readYamlFiles(paths.clisDir),
+    readYamlFiles(paths.sitesDir)
   ]);
   const groups = groupFiles.map(({ value, source }) => validateGroup(value, source));
   const apis = apiFiles.map(({ value, source }) => validateApi(value, source));
   const clis = cliFiles.map(({ value, source }) => validateCli(value, source));
-  validateRegistryData({ groups, apis, clis });
+  const sites = siteFiles.map(({ value, source }) => validateSite(value, source));
+  validateRegistryData({ groups, apis, clis, sites });
   return {
     groups: groups.sort(compareByOrderThenName),
     apis: apis.sort((left, right) => left.name.localeCompare(right.name)),
-    clis: clis.sort((left, right) => left.name.localeCompare(right.name))
+    clis: clis.sort((left, right) => left.name.localeCompare(right.name)),
+    sites: sites.sort((left, right) => left.name.localeCompare(right.name))
   };
 }
 
@@ -42,6 +47,7 @@ export function validateRegistryData(registry: Registry): void {
   const groupIds = new Set<string>();
   const apiIds = new Set<string>();
   const cliIds = new Set<string>();
+  const siteIds = new Set<string>();
 
   for (const group of registry.groups) {
     if (groupIds.has(group.id)) issues.push({ path: `groups.${group.id}`, message: "Duplicate group ID." });
@@ -64,6 +70,20 @@ export function validateRegistryData(registry: Registry): void {
     }
     if (!groupIds.has(cli.group)) {
       issues.push({ path: `clis.${cli.id}.group`, message: `Unknown group ID: ${cli.group}.` });
+    }
+  }
+
+  for (const site of registry.sites) {
+    if (siteIds.has(site.id)) issues.push({ path: `sites.${site.id}`, message: "Duplicate site ID." });
+    siteIds.add(site.id);
+    if (apiIds.has(site.id)) {
+      issues.push({ path: `sites.${site.id}.id`, message: `ID is already used by an API: ${site.id}.` });
+    }
+    if (cliIds.has(site.id)) {
+      issues.push({ path: `sites.${site.id}.id`, message: `ID is already used by a CLI capability: ${site.id}.` });
+    }
+    if (!groupIds.has(site.group)) {
+      issues.push({ path: `sites.${site.id}.group`, message: `Unknown group ID: ${site.group}.` });
     }
   }
 
@@ -103,10 +123,18 @@ export async function addOrUpdateCliFromFile(paths: ConfigPaths, filePath: strin
   return upsertCli(paths, cli);
 }
 
+export async function addOrUpdateSiteFromFile(paths: ConfigPaths, filePath: string, expectedId?: string): Promise<SiteDefinition> {
+  const site = validateSite(await parseConfigFile(filePath), filePath);
+  if (expectedId && site.id !== expectedId) {
+    throw new AppError("id_mismatch", `Site capability file ID ${site.id} does not match requested ID ${expectedId}.`);
+  }
+  return upsertSite(paths, site);
+}
+
 export async function upsertGroup(paths: ConfigPaths, group: GroupDefinition): Promise<GroupDefinition> {
   const registry = await loadRegistry(paths);
   const groups = replaceById(registry.groups, group);
-  validateRegistryData({ groups, apis: registry.apis, clis: registry.clis });
+  validateRegistryData({ groups, apis: registry.apis, clis: registry.clis, sites: registry.sites });
   await atomicWrite(join(paths.groupsDir, `${group.id}.yaml`), stringify(group));
   return group;
 }
@@ -114,7 +142,7 @@ export async function upsertGroup(paths: ConfigPaths, group: GroupDefinition): P
 export async function upsertApi(paths: ConfigPaths, api: ApiDefinition): Promise<ApiDefinition> {
   const registry = await loadRegistry(paths);
   const apis = replaceById(registry.apis, api);
-  validateRegistryData({ groups: registry.groups, apis, clis: registry.clis });
+  validateRegistryData({ groups: registry.groups, apis, clis: registry.clis, sites: registry.sites });
   await atomicWrite(join(paths.apisDir, `${api.id}.yaml`), stringify(api));
   await invalidateHealthEntry(paths, api.id);
   return api;
@@ -123,10 +151,18 @@ export async function upsertApi(paths: ConfigPaths, api: ApiDefinition): Promise
 export async function upsertCli(paths: ConfigPaths, cli: CliDefinition): Promise<CliDefinition> {
   const registry = await loadRegistry(paths);
   const clis = replaceById(registry.clis, cli);
-  validateRegistryData({ groups: registry.groups, apis: registry.apis, clis });
+  validateRegistryData({ groups: registry.groups, apis: registry.apis, clis, sites: registry.sites });
   await atomicWrite(join(paths.clisDir, `${cli.id}.yaml`), stringify(cli));
   await invalidateHealthEntry(paths, cli.id);
   return cli;
+}
+
+export async function upsertSite(paths: ConfigPaths, site: SiteDefinition): Promise<SiteDefinition> {
+  const registry = await loadRegistry(paths);
+  const sites = replaceById(registry.sites, site);
+  validateRegistryData({ groups: registry.groups, apis: registry.apis, clis: registry.clis, sites });
+  await atomicWrite(join(paths.sitesDir, `${site.id}.yaml`), stringify(site));
+  return site;
 }
 
 export async function setCliEnabled(paths: ConfigPaths, cliId: string, enabled: boolean): Promise<CliDefinition> {
@@ -141,6 +177,20 @@ export async function getCli(paths: ConfigPaths, cliId: string): Promise<CliDefi
   const cli = registry.clis.find((entry) => entry.id === cliId);
   if (!cli) throw new AppError("not_found", `No configured CLI capability with ID ${cliId}.`);
   return cli;
+}
+
+export async function setSiteEnabled(paths: ConfigPaths, siteId: string, enabled: boolean): Promise<SiteDefinition> {
+  const registry = await loadRegistry(paths);
+  const current = registry.sites.find((site) => site.id === siteId);
+  if (!current) throw new AppError("not_found", `No configured site capability with ID ${siteId}.`);
+  return upsertSite(paths, { ...current, enabled });
+}
+
+export async function getSite(paths: ConfigPaths, siteId: string): Promise<SiteDefinition> {
+  const registry = await loadRegistry(paths);
+  const site = registry.sites.find((entry) => entry.id === siteId);
+  if (!site) throw new AppError("not_found", `No configured site capability with ID ${siteId}.`);
+  return site;
 }
 
 export async function setApiEnabled(paths: ConfigPaths, apiId: string, enabled: boolean): Promise<ApiDefinition> {
@@ -223,6 +273,36 @@ export function validateCli(value: unknown, source = "cli"): CliDefinition {
     probe: validateCliProbe(input.probe, `${source}.probe`),
     usage: validateUsage(input.usage, `${source}.usage`)
   };
+}
+
+export function validateSite(value: unknown, source = "site"): SiteDefinition {
+  validateSchema("site", value, source);
+  const input = asRecord(value, source);
+  assertSchemaVersion(input, source);
+  assertLiteral(input, "kind", "site", source);
+  return {
+    schemaVersion: SCHEMA_VERSION,
+    kind: "site",
+    id: requiredId(input, "id", source),
+    name: requiredString(input, "name", source),
+    group: requiredId(input, "group", source),
+    description: requiredString(input, "description", source),
+    enabled: requiredBoolean(input, "enabled", source),
+    url: requiredUrl(input, "url", source),
+    docsUrl: requiredUrl(input, "docsUrl", source),
+    login: validateSiteLogin(input.login, `${source}.login`),
+    usage: validateUsage(input.usage, `${source}.usage`)
+  };
+}
+
+function validateSiteLogin(value: unknown, source: string): SiteLoginDefinition {
+  const input = asRecord(value, source);
+  const login: SiteLoginDefinition = {
+    required: requiredBoolean(input, "required", source),
+    check: requiredString(input, "check", source)
+  };
+  if (input.loginUrl !== undefined) login.loginUrl = requiredUrl(input, "loginUrl", source);
+  return login;
 }
 
 function validateCliInstall(value: unknown, source: string): CliDefinition["install"] {

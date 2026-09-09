@@ -1,0 +1,22 @@
+schemaVersion: 1
+kind: site-template
+id: wayback-machine
+name: Wayback Machine
+group: sites
+description: Archived snapshots of pages that have changed or gone offline.
+enabled: true
+url: https://web.archive.org
+docsUrl: https://web.archive.org
+login:
+  required: false
+  check: Login is not required to look up public snapshots.
+usage:
+  notes: |
+    Open with browser-harness against the user's real Chrome profile. Login is not required. Use to retrieve an archived snapshot of a URL that has changed or gone offline.
+  example: |
+    browser-harness <<'PY'
+    ensure_real_tab()
+    new_tab("https://web.archive.org")
+    wait_for_load()
+    print(page_info())
+    PY

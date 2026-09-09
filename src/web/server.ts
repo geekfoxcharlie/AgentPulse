@@ -3,7 +3,7 @@ import type { AddressInfo } from "node:net";
 import { loadRegistry } from "../lib/config.js";
 import { asAppError } from "../lib/errors.js";
 import { getCachedHealthSnapshots } from "../lib/health.js";
-import { groupView, groupsView, type ApiView, type CliView } from "../lib/query.js";
+import { groupView, groupsView, type ApiView, type CliView, type SiteView } from "../lib/query.js";
 import type { ConfigPaths } from "../lib/types.js";
 
 export async function startWebServer(paths: ConfigPaths, requestedPort = 4123): Promise<{ server: Server; url: string }> {
@@ -46,12 +46,13 @@ export async function startWebServer(paths: ConfigPaths, requestedPort = 4123): 
   return { server, url: `http://127.0.0.1:${address.port}` };
 }
 
-type ChannelView = (ApiView & { kindLabel: "API" }) | (CliView & { kindLabel: "CLI" });
+type ChannelView = (ApiView & { kindLabel: "API" }) | (CliView & { kindLabel: "CLI" }) | (SiteView & { kindLabel: "SITE" });
 
 function channelsOf(details: Awaited<ReturnType<typeof groupView>>[]): ChannelView[] {
   return details.flatMap((detail) => [
     ...detail.apis.map((api): ChannelView => ({ ...api, kindLabel: "API" as const })),
-    ...detail.clis.map((cli): ChannelView => ({ ...cli, kindLabel: "CLI" as const }))
+    ...detail.clis.map((cli): ChannelView => ({ ...cli, kindLabel: "CLI" as const })),
+    ...detail.sites.map((site): ChannelView => ({ ...site, kindLabel: "SITE" as const }))
   ]);
 }
 
@@ -179,12 +180,16 @@ function renderChannel(entry: ChannelView): string {
   const st = entry.health.status;
   const cls = statusClass(st);
   const latency = entry.health.latencyMs !== undefined ? `${entry.health.latencyMs} ms` : "—";
-  const healthMeta = entry.health.checkedAt
-    ? `Last probe ${formatDate(entry.health.checkedAt)} · ${entry.health.isExpired ? "cache expired" : `cache valid until ${formatDate(entry.health.expiresAt ?? entry.health.checkedAt)}`}`
-    : st === "disabled" ? "Disabled — never probed" : "No probe yet";
+  const healthMeta = entry.kindLabel === "SITE"
+    ? (st === "disabled" ? "Disabled" : "Not probed")
+    : entry.health.checkedAt
+      ? `Last probe ${formatDate(entry.health.checkedAt)} · ${entry.health.isExpired ? "cache expired" : `cache valid until ${formatDate(entry.health.expiresAt ?? entry.health.checkedAt)}`}`
+      : st === "disabled" ? "Disabled — never probed" : "No probe yet";
   const ref = entry.kindLabel === "CLI"
     ? `<code class="ref-cmd">${escapeHtml(entry.command)}</code>`
-    : `<code class="ref-env">${escapeHtml(entry.credential.name)}</code>`;
+    : entry.kindLabel === "SITE"
+      ? `<code class="ref-cmd">${escapeHtml(entry.url)}</code>`
+      : `<code class="ref-env">${escapeHtml(entry.credential.name)}</code>`;
 
   return `<details class="chan st-${cls}">
     <summary>
@@ -196,7 +201,7 @@ function renderChannel(entry: ChannelView): string {
       <span class="chev" aria-hidden="true"></span>
     </summary>
     <div class="chan-detail">
-      ${entry.kindLabel === "CLI" ? renderCliDetail(entry as CliView, healthMeta) : renderApiDetail(entry as ApiView, healthMeta)}
+      ${entry.kindLabel === "CLI" ? renderCliDetail(entry as CliView, healthMeta) : entry.kindLabel === "SITE" ? renderSiteDetail(entry as SiteView, healthMeta) : renderApiDetail(entry as ApiView, healthMeta)}
     </div>
   </details>`;
 }
@@ -251,14 +256,33 @@ function renderCliDetail(cli: CliView, healthMeta: string): string {
   </div>`;
 }
 
+function renderSiteDetail(site: SiteView, healthMeta: string): string {
+  const loginState = site.login.required ? "Required — if a sign-in wall appears, stop and ask the user" : "Not required";
+  return `<div class="detail-grid">
+    <dl>
+      <div><dt>Status</dt><dd>${escapeHtml(healthMeta)} — sites are not probed; check login in the browser when using.</dd></div>
+      <div><dt>URL</dt><dd><code>${escapeHtml(site.url)}</code></dd></div>
+      <div><dt>Login</dt><dd>${escapeHtml(loginState)}</dd></div>
+      <div><dt>Login check</dt><dd>${escapeHtml(site.login.check)}</dd></div>
+      ${site.login.loginUrl ? `<div><dt>Login URL</dt><dd><code>${escapeHtml(site.login.loginUrl)}</code></dd></div>` : ""}
+    </dl>
+    <div class="usage">
+      <p>${escapeHtml(site.usage.notes)}</p>
+      <pre><code>${escapeHtml(site.usage.example)}</code></pre>
+      <a href="${escapeHtml(site.docsUrl)}" rel="noreferrer" target="_blank">Open site ↗</a>
+    </div>
+  </div>`;
+}
+
 function renderEmptyState(paths: ConfigPaths): string {
   return `<section class="module empty">
     <p class="eyebrow">NO MODULES INSTALLED</p>
     <h2>No capability registered on this machine.</h2>
-    <p>Built-in templates cover six independent search APIs, Cloudflare GPT Image 2, and the browser-harness CLI. Instantiate one and it appears here as a channel.</p>
+    <p>Built-in templates cover independent search APIs, Cloudflare GPT Image 2, the browser-harness CLI, and research websites opened in the real browser. Instantiate one and it appears here as a channel.</p>
     <pre><code>agentpulse templates --group search
 agentpulse api add --template brave-search --configured-at ~/.zshenv
-agentpulse cli add --template browser-harness</code></pre>
+agentpulse cli add --template browser-harness
+agentpulse site add --template perplexity</code></pre>
     <small>Current configuration directory: <code>${escapeHtml(paths.configDir)}</code></small>
   </section>`;
 }

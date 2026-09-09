@@ -1,0 +1,23 @@
+schemaVersion: 1
+kind: site-template
+id: xiaohongshu-creator
+name: Xiaohongshu Creator Center
+group: sites
+description: Xiaohongshu creator dashboard for the user's own account data.
+enabled: true
+url: https://creator.xiaohongshu.com
+docsUrl: https://creator.xiaohongshu.com
+login:
+  required: true
+  check: After load, if a Xiaohongshu login or QR-code wall is shown, the user is not logged in.
+  loginUrl: https://creator.xiaohongshu.com
+usage:
+  notes: |
+    Open with browser-harness against the user's real Chrome profile, not a cloud browser. Login is required. If the page shows a login wall, stop and ask the user to log in; do not enter a password. Use only for the user's own Xiaohongshu creator data.
+  example: |
+    browser-harness <<'PY'
+    ensure_real_tab()
+    new_tab("https://creator.xiaohongshu.com")
+    wait_for_load()
+    print(page_info())
+    PY

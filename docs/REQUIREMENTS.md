@@ -100,6 +100,19 @@ CLI 能力 MUST NOT 声明 HTTP 服务地址、凭据引用或环境变量需求
 
 内置 `browser` 目录 MUST 提供 `browser-harness` CLI 模板，其健康检查 MUST 使用被动的 `doctor --json` 子命令，不得启动浏览器或守护进程。
 
+### R1.4：网站能力
+
+除 HTTP API 和本地 CLI 外，系统 MUST 支持把需要在用户真实浏览器中打开的网站登记为 `site` 能力，至少记录：
+
+- 稳定且唯一的 ID（与 API、CLI ID 共用一个命名空间，不得冲突）、名称、描述和所属能力组；
+- 入口 URL 与文档地址；
+- 是否需要登录、如何判断已登录，以及可选的登录 URL；
+- 启用状态和调用说明（通过 `browser-harness` 打开用户本机 Chrome）。
+
+`site` 能力 MUST NOT 声明 HTTP 服务地址、凭据引用、环境变量或健康探测。组健康检查 MUST 把站点列为 `unknown` 或 `disabled`，MUST NOT 打开浏览器、访问该站或检查登录态。登录检查由执行 agent 在任务当时用 browser-harness 完成；若站点需要登录且出现登录墙，agent MUST 停下来请用户登录，不得代填密码。
+
+内置 `sites` 目录 MUST 提供一组研究与创作者网站模板。精确 URL、登录要求和调用示例属于各模板 YAML 的唯一事实来源。
+
 ### R2：凭据元信息
 
 AgentPulse MUST 记录凭据的环境变量名、配置位置和请求注入方式，但 MUST NOT 把真实密钥值作为 API 配置的一部分保存。
@@ -118,7 +131,7 @@ CLI MUST 是 Agent 使用 AgentPulse 的正式查询入口，并同时提供：
 - 结构稳定、适合 Agent 解析的 JSON 输出；
 - 能力组列表查询；
 - 单个能力组及组内 API 查询；
-- 单个 API 的完整调用说明查询。
+- 单个 API、CLI 或 site 的完整调用说明查询。
 
 AgentPulse 第一阶段 MUST NOT 把正式 HTTP API 或 MCP 作为必要产品接口。
 

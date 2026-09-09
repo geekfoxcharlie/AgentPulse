@@ -67,7 +67,7 @@ export async function getCachedHealthSnapshots(
   now = new Date()
 ): Promise<Record<string, HealthSnapshot>> {
   const state = await loadHealthState(paths);
-  return Object.fromEntries([...registry.apis, ...registry.clis].map((entry) => [entry.id, snapshotFor(entry, state, now)]));
+  return Object.fromEntries([...registry.apis, ...registry.clis, ...registry.sites].map((entry) => [entry.id, snapshotFor(entry, state, now)]));
 }
 
 type HealthTracked = Pick<ApiDefinition, "id" | "enabled">;
@@ -98,7 +98,9 @@ async function runGroupHealth(
   const state = await loadHealthState(paths);
   const apis = registry.apis.filter((api) => api.group === groupId);
   const clis = registry.clis.filter((cli) => cli.group === groupId);
+  const sites = registry.sites.filter((site) => site.group === groupId);
   const results = await Promise.all([
+    ...sites.map(async (site) => [site.id, snapshotFor(site, state, now())] as const),
     ...apis.map(async (api) => {
       if (!api.enabled) return [api.id, { status: "disabled", checkedAt: null, expiresAt: null, isExpired: false } satisfies HealthSnapshot] as const;
 

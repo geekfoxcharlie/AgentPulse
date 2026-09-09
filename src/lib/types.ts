@@ -80,6 +80,30 @@ export interface CliTemplate extends Omit<CliDefinition, "kind"> {
   kind: "cli-template";
 }
 
+export interface SiteLoginDefinition {
+  required: boolean;
+  check: string;
+  loginUrl?: string;
+}
+
+export interface SiteDefinition {
+  schemaVersion: typeof SCHEMA_VERSION;
+  kind: "site";
+  id: string;
+  name: string;
+  group: string;
+  description: string;
+  enabled: boolean;
+  url: string;
+  docsUrl: string;
+  login: SiteLoginDefinition;
+  usage: UsageDefinition;
+}
+
+export interface SiteTemplate extends Omit<SiteDefinition, "kind"> {
+  kind: "site-template";
+}
+
 export interface UsageDefinition {
   notes: string;
   example: string;
@@ -128,6 +152,7 @@ export interface Registry {
   groups: GroupDefinition[];
   apis: ApiDefinition[];
   clis: CliDefinition[];
+  sites: SiteDefinition[];
 }
 
 export type HealthStatus = "healthy" | "unhealthy" | "misconfigured" | "disabled" | "unknown";
@@ -187,6 +212,7 @@ export interface ConfigPaths {
   groupsDir: string;
   apisDir: string;
   clisDir: string;
+  sitesDir: string;
   stateDir: string;
   healthCachePath: string;
 }

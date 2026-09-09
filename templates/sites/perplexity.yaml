@@ -1,0 +1,23 @@
+schemaVersion: 1
+kind: site-template
+id: perplexity
+name: Perplexity
+group: sites
+description: Cited web research and the user's Perplexity workspace, opened in the real Chrome profile.
+enabled: true
+url: https://www.perplexity.ai
+docsUrl: https://www.perplexity.ai
+login:
+  required: true
+  check: After load, if a Sign in or Log in control is still the primary action, the user is not logged in.
+  loginUrl: https://www.perplexity.ai
+usage:
+  notes: |
+    Open with browser-harness against the user's real Chrome profile, not a cloud browser. Login is required. If the page shows a sign-in wall, stop and ask the user to log in; do not enter a password. Use for cited answers and the user's Pro threads or spaces.
+  example: |
+    browser-harness <<'PY'
+    ensure_real_tab()
+    new_tab("https://www.perplexity.ai")
+    wait_for_load()
+    print(page_info())
+    PY

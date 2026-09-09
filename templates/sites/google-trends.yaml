@@ -1,0 +1,22 @@
+schemaVersion: 1
+kind: site-template
+id: google-trends
+name: Google Trends
+group: sites
+description: Search interest over time, by region, and related topics.
+enabled: true
+url: https://trends.google.com
+docsUrl: https://trends.google.com
+login:
+  required: false
+  check: Login is not required for the public Trends UI.
+usage:
+  notes: |
+    Open with browser-harness against the user's real Chrome profile. Login is not required. Use for relative search interest, regional comparison, and related queries.
+  example: |
+    browser-harness <<'PY'
+    ensure_real_tab()
+    new_tab("https://trends.google.com")
+    wait_for_load()
+    print(page_info())
+    PY

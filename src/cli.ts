@@ -1,11 +1,11 @@
 #!/usr/bin/env node
-import { addOrUpdateApiFromFile, addOrUpdateCliFromFile, addOrUpdateGroupFromFile, getApi, getCli, loadRegistry, setApiEnabled, setCliEnabled } from "./lib/config.js";
+import { addOrUpdateApiFromFile, addOrUpdateCliFromFile, addOrUpdateGroupFromFile, addOrUpdateSiteFromFile, getApi, getCli, getSite, loadRegistry, setApiEnabled, setCliEnabled, setSiteEnabled } from "./lib/config.js";
 import { agentContext } from "./lib/context.js";
 import { asAppError, AppError } from "./lib/errors.js";
 import { checkGroupHealth, getCachedHealthSnapshots } from "./lib/health.js";
 import { resolvePathSources, resolvePaths } from "./lib/paths.js";
-import { apiView, cliView, groupView, groupsView } from "./lib/query.js";
-import { instantiateApiTemplate, instantiateCliTemplate, loadTemplateCatalog } from "./lib/templates.js";
+import { apiView, cliView, groupView, groupsView, siteView } from "./lib/query.js";
+import { instantiateApiTemplate, instantiateCliTemplate, instantiateSiteTemplate, loadTemplateCatalog } from "./lib/templates.js";
 import { SCHEMA_VERSION, type CliEnvelope } from "./lib/types.js";
 import { startWebServer } from "./web/server.js";
 
@@ -30,11 +30,13 @@ async function main(): Promise<void> {
       let groups = 0;
       let apis = 0;
       let clis = 0;
+      let sites = 0;
       try {
         const registry = await loadRegistry(paths);
         groups = registry.groups.length;
         apis = registry.apis.length;
         clis = registry.clis.length;
+        sites = registry.sites.length;
       } catch {
         // empty or unreadable config still reports paths
       }
@@ -51,7 +53,8 @@ async function main(): Promise<void> {
         webPort: 4123,
         groups,
         apis,
-        clis
+        clis,
+        sites
       }, json);
       return;
     }
@@ -84,7 +87,16 @@ async function main(): Promise<void> {
         docsUrl: cli.docsUrl,
         probe: { args: cli.probe.args, expectedExit: cli.probe.expectedExit }
       }));
-      printSuccess("templates", { groups, templates, cliTemplates }, json);
+      const siteTemplates = (groupId ? catalog.sites.filter((site) => site.group === groupId) : catalog.sites).map((site) => ({
+        id: site.id,
+        name: site.name,
+        group: site.group,
+        description: site.description,
+        url: site.url,
+        docsUrl: site.docsUrl,
+        loginRequired: site.login.required
+      }));
+      printSuccess("templates", { groups, templates, cliTemplates, siteTemplates }, json);
       return;
     }
     if (command === "group") {
@@ -99,9 +111,13 @@ async function main(): Promise<void> {
       await handleCliCommand(args.slice(1), json, paths);
       return;
     }
+    if (command === "site") {
+      await handleSiteCommand(args.slice(1), json, paths);
+      return;
+    }
     if (command === "validate") {
       const [registry, catalog] = await Promise.all([loadRegistry(paths), loadTemplateCatalog()]);
-      printSuccess("validate", { valid: true, groups: registry.groups.length, apis: registry.apis.length, templates: catalog.apis.length }, json);
+      printSuccess("validate", { valid: true, groups: registry.groups.length, apis: registry.apis.length, clis: registry.clis.length, sites: registry.sites.length, templates: catalog.apis.length, cliTemplates: catalog.clis.length, siteTemplates: catalog.sites.length }, json);
       return;
     }
     if (command === "web") {
@@ -202,6 +218,38 @@ async function handleCliCommand(args: string[], json: boolean, paths: ReturnType
   printSuccess("cli", await cliView(cli, paths), json);
 }
 
+async function handleSiteCommand(args: string[], json: boolean, paths: ReturnType<typeof resolvePaths>): Promise<void> {
+  const action = args[0];
+  if (!action) throw new AppError("invalid_argument", "A site capability ID or site command is required.");
+
+  if (action === "add") {
+    const templateId = option(args, "--template");
+    if (templateId) {
+      const site = await instantiateSiteTemplate(paths, templateId);
+      printSuccess("site.add", site, json);
+      return;
+    }
+    const site = await addOrUpdateSiteFromFile(paths, requiredOption(args, "--file"));
+    printSuccess("site.add", site, json);
+    return;
+  }
+  if (action === "update") {
+    const siteId = requiredPositional(args, 1, "A site ID is required for update.");
+    const site = await addOrUpdateSiteFromFile(paths, requiredOption(args, "--file"), siteId);
+    printSuccess("site.update", site, json);
+    return;
+  }
+  if (action === "enable" || action === "disable") {
+    const siteId = requiredPositional(args, 1, `A site ID is required for ${action}.`);
+    const site = await setSiteEnabled(paths, siteId, action === "enable");
+    printSuccess(`site.${action}`, site, json);
+    return;
+  }
+
+  const site = await getSite(paths, action);
+  printSuccess("site", await siteView(site, paths), json);
+}
+
 function option(args: string[], name: string): string | undefined {
   const index = args.indexOf(name);
   if (index === -1) return undefined;
@@ -262,6 +310,7 @@ function renderHuman(command: string, data: unknown): string {
       groups: number;
       apis: number;
       clis: number;
+      sites: number;
     };
     return [
       `configDir  ${status.configDir} (${status.source.config})`,
@@ -269,18 +318,20 @@ function renderHuman(command: string, data: unknown): string {
       `web        http://127.0.0.1:${status.webPort}`,
       `groups     ${status.groups}`,
       `apis       ${status.apis}`,
-      `clis       ${status.clis}`
+      `clis       ${status.clis}`,
+      `sites      ${status.sites}`
     ].join("\n");
   }
   if (command === "groups") {
     const groups = data as Awaited<ReturnType<typeof groupsView>>;
-    return groups.length === 0 ? "No configured groups. Run `agentpulse templates`." : groups.map((group) => `${group.id}\t${group.name}\t${group.apiCount} APIs, ${group.cliCount} CLIs\t${group.health.healthy} healthy / ${group.health.unhealthy} unhealthy / ${group.health.misconfigured} needs configuration`).join("\n");
+    return groups.length === 0 ? "No configured groups. Run `agentpulse templates`." : groups.map((group) => `${group.id}\t${group.name}\t${group.apiCount} APIs, ${group.cliCount} CLIs, ${group.siteCount} sites\t${group.health.healthy} healthy / ${group.health.unhealthy} unhealthy / ${group.health.misconfigured} needs configuration`).join("\n");
   }
   if (command === "templates") {
-    const result = data as { templates: Array<{ id: string; name: string; group: string; defaultCredentialEnv: string; requiredEnvironment: string[] }>; cliTemplates: Array<{ id: string; name: string; group: string; command: string }> };
+    const result = data as { templates: Array<{ id: string; name: string; group: string; defaultCredentialEnv: string; requiredEnvironment: string[] }>; cliTemplates: Array<{ id: string; name: string; group: string; command: string }>; siteTemplates: Array<{ id: string; name: string; group: string; url: string }> };
     return [
       ...result.templates.map((template) => `${template.id}\t${template.name}\t${template.group}\tapi\t${[template.defaultCredentialEnv, ...template.requiredEnvironment].join(", ")}`),
-      ...result.cliTemplates.map((template) => `${template.id}\t${template.name}\t${template.group}\tcli\t${template.command}`)
+      ...result.cliTemplates.map((template) => `${template.id}\t${template.name}\t${template.group}\tcli\t${template.command}`),
+      ...result.siteTemplates.map((template) => `${template.id}\t${template.name}\t${template.group}\tsite\t${template.url}`)
     ].join("\n");
   }
   if (command === "group") {
@@ -288,7 +339,8 @@ function renderHuman(command: string, data: unknown): string {
     return [
       `${result.group.name} (${result.group.id})`,
       ...result.apis.map((api) => `  ${api.id}\t${api.health.status}\t${api.credential.name}`),
-      ...result.clis.map((cli) => `  ${cli.id}\t${cli.health.status}\t${cli.command}`)
+      ...result.clis.map((cli) => `  ${cli.id}\t${cli.health.status}\t${cli.command}`),
+      ...result.sites.map((site) => `  ${site.id}\t${site.login.required ? "login required" : "no login"}\t${site.url}`)
     ].join("\n");
   }
   if (command === "api") {
@@ -300,9 +352,13 @@ function renderHuman(command: string, data: unknown): string {
     const cli = data as Awaited<ReturnType<typeof cliView>>;
     return `${cli.name} (${cli.id})\n${cli.description}\nCommand: ${cli.command}\nInstalled via: ${cli.install.command}\nHealth: ${cli.health.status}\nDocs: ${cli.docsUrl}\n\n${cli.usage.example}`;
   }
+  if (command === "site") {
+    const site = data as Awaited<ReturnType<typeof siteView>>;
+    return `${site.name} (${site.id})\n${site.description}\nURL: ${site.url}\nLogin: ${site.login.required ? "required" : "not required"}\nCheck: ${site.login.check}\nDocs: ${site.docsUrl}\n\n${site.usage.example}`;
+  }
   if (command === "validate") return `Configuration valid: ${JSON.stringify(data)}`;
   if (command.startsWith("api.") || command.startsWith("group.")) return `Updated: ${(data as { id: string }).id}`;
-  if (command.startsWith("cli.")) return `Updated: ${(data as { id: string }).id}`;
+  if (command.startsWith("cli.") || command.startsWith("site.")) return `Updated: ${(data as { id: string }).id}`;
   return JSON.stringify(data, null, 2);
 }
 
@@ -314,6 +370,7 @@ Query
   agentpulse group <group-id> [--health] [--json]
   agentpulse api <api-id> [--json]
   agentpulse cli <cli-id> [--json]
+  agentpulse site <site-id> [--json]
   agentpulse templates [--group <group-id>] [--json]
   agentpulse context [--json]
   agentpulse status [--json]
@@ -329,6 +386,10 @@ Configure
   agentpulse cli add --file <path>
   agentpulse cli update <cli-id> --file <path>
   agentpulse cli enable|disable <cli-id>
+  agentpulse site add --template <template-id>
+  agentpulse site add --file <path>
+  agentpulse site update <site-id> --file <path>
+  agentpulse site enable|disable <site-id>
   agentpulse validate [--json]
 
 View

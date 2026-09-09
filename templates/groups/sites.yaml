@@ -1,0 +1,6 @@
+schemaVersion: 1
+kind: group-template
+id: sites
+name: Sites
+description: Research and creator websites opened in the user's real browser; not HTTP APIs or local CLIs.
+order: 40

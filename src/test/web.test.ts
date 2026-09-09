@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFile, stat } from "node:fs/promises";
 import test from "node:test";
 import { join } from "node:path";
-import { instantiateApiTemplate } from "../lib/templates.js";
+import { instantiateApiTemplate, instantiateSiteTemplate } from "../lib/templates.js";
 import { startWebServer } from "../web/server.js";
 import { withEnvironment, withTempPaths } from "./helpers.js";
 
@@ -28,6 +28,25 @@ test("read-only web page shows metadata but never renders the secret or writes h
     });
 
     assert.equal(await readFile(configPath, "utf8"), before);
+    await assert.rejects(stat(paths.healthCachePath));
+  });
+});
+
+test("read-only web page renders site capabilities without probing them", async () => {
+  await withTempPaths(async (paths) => {
+    await instantiateSiteTemplate(paths, "perplexity");
+    const { server, url } = await startWebServer(paths, 0);
+    try {
+      const response = await fetch(url);
+      const html = await response.text();
+      assert.equal(response.status, 200);
+      assert.match(html, /Perplexity/);
+      assert.match(html, /https:\/\/www\.perplexity\.ai/);
+      assert.match(html, /SITE/);
+      assert.match(html, /sites are not probed/);
+    } finally {
+      await new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
+    }
     await assert.rejects(stat(paths.healthCachePath));
   });
 });

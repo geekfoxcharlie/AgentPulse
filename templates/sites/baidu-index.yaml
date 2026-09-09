@@ -1,0 +1,23 @@
+schemaVersion: 1
+kind: site-template
+id: baidu-index
+name: Baidu Index
+group: sites
+description: Baidu search-demand index for Chinese keywords; requires a logged-in Baidu account.
+enabled: true
+url: https://index.baidu.com
+docsUrl: https://index.baidu.com
+login:
+  required: true
+  check: After load, if the page asks to 登录 or shows a Baidu passport wall, the user is not logged in.
+  loginUrl: https://index.baidu.com
+usage:
+  notes: |
+    Open with browser-harness against the user's real Chrome profile, not a cloud browser. Login is required. If the page shows a login wall, stop and ask the user to log in; do not enter a password. Use for Chinese keyword demand numbers.
+  example: |
+    browser-harness <<'PY'
+    ensure_real_tab()
+    new_tab("https://index.baidu.com")
+    wait_for_load()
+    print(page_info())
+    PY

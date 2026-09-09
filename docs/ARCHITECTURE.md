@@ -38,6 +38,7 @@ CLI 与 Web MUST 调用同一套共享核心逻辑，不能各自实现配置解
 | 可安装的常见 API 初始定义 | 随 AgentPulse 发布的内置模板 |
 | 能力组 ID、名称、说明和展示顺序 | 用户级能力组配置 |
 | API 身份、端点、认证引用、用法和探测定义 | 用户级 API 配置 |
+| 网站身份、入口 URL、登录说明和用法 | 用户级 site 配置 |
 | 真实密钥值 | 配置记录所指向的本机环境或文件；不属于 AgentPulse API 配置 |
 | 最近健康结果和过期时间 | 用户级运行状态目录中的健康缓存 |
 | 可注入 Agent 的发现提示 | `guides/agent-context.md` |
@@ -45,7 +46,7 @@ CLI 与 Web MUST 调用同一套共享核心逻辑，不能各自实现配置解
 | 当前系统边界和数据流 | `docs/ARCHITECTURE.md` |
 | 单次迭代范围、设计与任务 | 对应 `.kiro/specs/<version>-<name>/` |
 | CLI 精确语法 | 可执行程序的 `--help`；实现前由当前 Spec 定义 |
-| 配置精确字段约束 | `schemas/group.schema.json`、`schemas/api.schema.json` 与 `schemas/cli.schema.json` |
+| 配置精确字段约束 | `schemas/group.schema.json`、`schemas/api.schema.json`、`schemas/cli.schema.json` 与 `schemas/site.schema.json` |
 | CLI JSON 信封精确字段 | `schemas/cli-output.schema.json` |
 
 Web、CLI 展示文本和 README 都是这些来源的消费者，不能成为第二份配置或需求事实。
@@ -60,7 +61,8 @@ AgentPulse 的业务配置跨 Agent、跨工具和跨项目共享，因此运行
 ~/.config/agentpulse/
 ├── groups/*.yaml          # 能力组配置
 ├── apis/*.yaml            # 每个 HTTP API 的声明式配置
-└── clis/*.yaml            # 每个本地 CLI 能力的声明式配置
+├── clis/*.yaml            # 每个本地 CLI 能力的声明式配置
+└── sites/*.yaml           # 每个需在真实浏览器中打开的网站
 
 ~/.local/state/agentpulse/
 └── health-cache.json      # 可丢弃并重新生成的健康状态
@@ -111,6 +113,18 @@ CLI 能力条目描述一台机器上已安装的命令行工具，由以下概�
 
 CLI 能力不声明 HTTP 服务、凭据或环境变量需求。精确字段由 [`schemas/cli.schema.json`](../schemas/cli.schema.json) 定义。健康探测直接运行该命令（不经过 shell），命令不存在映射为 `misconfigured`，其余失败映射为 `unhealthy`。
 
+### 5.2.2 网站能力条目
+
+网站能力条目描述需要在用户真实浏览器中打开的站点，由以下概念组成：
+
+- 身份：ID、名称、描述、启用状态；
+- 分类：能力组 ID；
+- 入口 URL 与文档地址；
+- 登录：是否需要登录、如何判断已登录、可选登录 URL；
+- 用法：适用场景和通过 `browser-harness` 打开的可执行示例。
+
+网站能力不声明 HTTP 服务、凭据、环境变量或健康探测。精确字段由 [`schemas/site.schema.json`](../schemas/site.schema.json) 定义。组健康检查不得打开浏览器或访问该站；登录由执行 agent 在任务当时检查。
+
 ### 5.3 内置模板
 
 AgentPulse 可以随程序发布常见 API 的内置模板，以减少 Agent 重复填写公开且稳定的端点、认证方式、用法和最小探测定义。
@@ -119,7 +133,7 @@ AgentPulse 可以随程序发布常见 API 的内置模板，以减少 Agent 重
 
 因此，模板更新不能静默改变已有用户配置。需要同步上游变化时，必须由 Agent 发起显式更新并经过正常校验和缓存失效流程。
 
-内置 `search` 目录只收录可由 Agent 直接调用并返回机器可读结果的独立搜索 API。模型内建的服务端搜索工具不属于该目录；X 帖子搜索使用 X API 的直接端点。`image-generation` 目录提供通过 Cloudflare AI Gateway 调用的 GPT Image 2 模板。`browser` 目录提供本地 CLI 能力模板（如 `browser-harness`）。当前人工筛选的模板名称属于[产品需求](REQUIREMENTS.md#r11内置独立搜索目录)和 [R1.2](REQUIREMENTS.md#r12cloudflare-ai-gateway-图像生成目录)，而精确端点、凭据引用和最小探测属于各模板 YAML 的唯一事实来源。图像模板的健康探测必须采用非生成性端点，避免状态检查产生推理费用；CLI 模板的健康探测必须是被动检查。当前模板目录的增量与验收条件分别由 [0.1 MVP Spec](../.kiro/specs/0.1-mvp/requirements.md)、[Cloudflare image-generation Spec](../.kiro/specs/0.2-cloudflare-image-generation/requirements.md) 和 [CLI Capabilities Spec](../.kiro/specs/0.3-cli-capabilities/requirements.md) 维护。
+内置 `search` 目录只收录可由 Agent 直接调用并返回机器可读结果的独立搜索 API。模型内建的服务端搜索工具不属于该目录；X 帖子搜索使用 X API 的直接端点。`image-generation` 目录提供通过 Cloudflare AI Gateway 调用的 GPT Image 2 模板。`browser` 目录提供本地 CLI 能力模板（如 `browser-harness`）。`sites` 目录提供需在真实浏览器中打开的研究与创作者网站模板。当前人工筛选的模板名称属于[产品需求](REQUIREMENTS.md#r11内置独立搜索目录)、[R1.2](REQUIREMENTS.md#r12cloudflare-ai-gateway-图像生成目录)、[R1.3](REQUIREMENTS.md#r13本地-cli-能力) 和 [R1.4](REQUIREMENTS.md#r14网站能力)，而精确端点、凭据引用、最小探测、URL 和登录说明属于各模板 YAML 的唯一事实来源。图像模板的健康探测必须采用非生成性端点，避免状态检查产生推理费用；CLI 模板的健康探测必须是被动检查；网站模板不得带健康探测。当前模板目录的增量与验收条件分别由 [0.1 MVP Spec](../.kiro/specs/0.1-mvp/requirements.md)、[Cloudflare image-generation Spec](../.kiro/specs/0.2-cloudflare-image-generation/requirements.md)、[CLI Capabilities Spec](../.kiro/specs/0.3-cli-capabilities/requirements.md) 和 [Site Capabilities Spec](../.kiro/specs/0.5-site-capabilities/requirements.md) 维护。
 
 ## 6. Agent 查询流程
 
@@ -143,6 +157,7 @@ agentpulse groups [--json]
 agentpulse group <group-id> [--health] [--json]
 agentpulse api <api-id> [--json]
 agentpulse cli <cli-id> [--json]
+agentpulse site <site-id> [--json]
 agentpulse templates [--group <group-id>] [--json]
 agentpulse group add --file <path>
 agentpulse group update <group-id> --file <path>
@@ -154,6 +169,10 @@ agentpulse cli add --template <template-id>
 agentpulse cli add --file <path>
 agentpulse cli update <cli-id> --file <path>
 agentpulse cli enable|disable <cli-id>
+agentpulse site add --template <template-id>
+agentpulse site add --file <path>
+agentpulse site update <site-id> --file <path>
+agentpulse site enable|disable <site-id>
 agentpulse validate [--json]
 agentpulse context [--json]
 agentpulse web [--port <port>]

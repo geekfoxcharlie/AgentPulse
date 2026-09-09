@@ -1,0 +1,22 @@
+schemaVersion: 1
+kind: site-template
+id: google-scholar
+name: Google Scholar
+group: sites
+description: Scholarly papers, citations, and citing works.
+enabled: true
+url: https://scholar.google.com
+docsUrl: https://scholar.google.com
+login:
+  required: false
+  check: Login is not required for public paper search.
+usage:
+  notes: |
+    Open with browser-harness against the user's real Chrome profile. Login is not required. Use for papers, citation counts, and citing works.
+  example: |
+    browser-harness <<'PY'
+    ensure_real_tab()
+    new_tab("https://scholar.google.com")
+    wait_for_load()
+    print(page_info())
+    PY

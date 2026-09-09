@@ -88,6 +88,47 @@ test("CLI exposes and configures the browser-harness CLI template", async () => 
   });
 });
 
+test("CLI exposes and configures a site template without probing it", async () => {
+  await withTempPaths(async (paths) => {
+    const env: NodeJS.ProcessEnv = { ...process.env, AGENTPULSE_CONFIG_DIR: paths.configDir, AGENTPULSE_STATE_DIR: paths.stateDir };
+
+    const templates = await run(process.execPath, [cliPath, "templates", "--group", "sites", "--json"], { env });
+    const templateEnvelope = JSON.parse(templates.stdout) as {
+      data: {
+        groups: Array<{ id: string }>;
+        templates: unknown[];
+        cliTemplates: unknown[];
+        siteTemplates: Array<{ id: string; url: string; loginRequired: boolean }>;
+      };
+    };
+    assert.deepEqual(templateEnvelope.data.groups.map((group) => group.id), ["sites"]);
+    assert.deepEqual(templateEnvelope.data.templates, []);
+    assert.deepEqual(templateEnvelope.data.cliTemplates, []);
+    assert.ok(templateEnvelope.data.siteTemplates.some((site) => site.id === "perplexity" && site.loginRequired === true));
+    assert.ok(templateEnvelope.data.siteTemplates.some((site) => site.id === "google-trends" && site.loginRequired === false));
+
+    const add = await run(process.execPath, [cliPath, "site", "add", "--template", "perplexity", "--json"], { env });
+    const addEnvelope = JSON.parse(add.stdout) as { data: { id: string; kind: string } };
+    assert.equal(addEnvelope.data.id, "perplexity");
+    assert.equal(addEnvelope.data.kind, "site");
+
+    const view = await run(process.execPath, [cliPath, "site", "perplexity", "--json"], { env });
+    const viewEnvelope = JSON.parse(view.stdout) as { data: { url: string; login: { required: boolean }; health: { status: string } } };
+    assert.equal(viewEnvelope.data.url, "https://www.perplexity.ai");
+    assert.equal(viewEnvelope.data.login.required, true);
+    assert.equal(viewEnvelope.data.health.status, "unknown");
+
+    const group = await run(process.execPath, [cliPath, "group", "sites", "--health", "--json"], { env });
+    const groupEnvelope = JSON.parse(group.stdout) as { data: { sites: Array<{ id: string; health: { status: string } }> } };
+    assert.equal(groupEnvelope.data.sites[0]?.id, "perplexity");
+    assert.equal(groupEnvelope.data.sites[0]?.health.status, "unknown");
+
+    const disable = await run(process.execPath, [cliPath, "site", "disable", "perplexity", "--json"], { env });
+    const disableEnvelope = JSON.parse(disable.stdout) as { data: { enabled: boolean } };
+    assert.equal(disableEnvelope.data.enabled, false);
+  });
+});
+
 test("CLI exposes and configures the Cloudflare GPT Image 2 template", async () => {
   await withTempPaths(async (paths) => {
     const env: NodeJS.ProcessEnv = { ...process.env, AGENTPULSE_CONFIG_DIR: paths.configDir, AGENTPULSE_STATE_DIR: paths.stateDir };
