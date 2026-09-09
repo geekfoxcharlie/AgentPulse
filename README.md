@@ -6,7 +6,7 @@ Agents query and configure AgentPulse through its CLI, then call third-party API
 
 ## Project status
 
-The 0.1 MVP is implemented. Register locally available API keys, tokens, and required account identifiers as environment variables to run real health checks. The built-in catalog includes Exa, Firecrawl Search, Tavily, X API Search Posts, Serper, Brave Search, GitHub Repository Search, Cloudflare GPT Image 2, the browser-harness CLI for driving the local Chrome profile, and research websites opened in that browser. See the [0.1 MVP Spec](.kiro/specs/0.1-mvp/requirements.md), the [Cloudflare image-generation spec](.kiro/specs/0.2-cloudflare-image-generation/requirements.md), the [CLI capabilities spec](.kiro/specs/0.3-cli-capabilities/requirements.md), the [GitHub repository-search spec](.kiro/specs/0.4-github-repository-search/requirements.md), and the [site capabilities spec](.kiro/specs/0.5-site-capabilities/requirements.md) for scope and local setup steps.
+The 0.1 MVP is implemented. Register locally available API keys, tokens, and required account identifiers as environment variables to run real health checks. The built-in catalog includes Exa, Firecrawl Search, Tavily, X API Search Posts, Serper, Brave Search, GitHub Repository Search, skills.sh, Cloudflare GPT Image 2, the browser-harness CLI for driving the local Chrome profile, and research websites opened in that browser. See the [0.1 MVP Spec](.kiro/specs/0.1-mvp/requirements.md), the [Cloudflare image-generation spec](.kiro/specs/0.2-cloudflare-image-generation/requirements.md), the [CLI capabilities spec](.kiro/specs/0.3-cli-capabilities/requirements.md), the [GitHub repository-search spec](.kiro/specs/0.4-github-repository-search/requirements.md), and the [site capabilities spec](.kiro/specs/0.5-site-capabilities/requirements.md) for scope and local setup steps.
 
 ## Quick start
 
@@ -31,6 +31,14 @@ For GitHub repository search, make a `GITHUB_TOKEN` available to the current pro
 agentpulse api add --template github-repository-search --configured-at ~/.zshenv
 agentpulse group search --health --json
 agentpulse api github-repository-search --json
+```
+
+For skills.sh Agent Skills search, make a `VERCEL_OIDC_TOKEN` available to the current process, then register the template. The health probe runs a one-result search.
+
+```bash
+agentpulse api add --template skills-sh --configured-at ~/.zshenv
+agentpulse group search --health --json
+agentpulse api skills-sh --json
 ```
 
 For Cloudflare GPT Image 2, make both `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` available to the current process, then register the template and inspect it like a search API:

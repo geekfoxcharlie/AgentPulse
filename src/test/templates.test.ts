@@ -38,6 +38,7 @@ test("built-in templates cover the search catalog and Cloudflare image generatio
     "firecrawl-search",
     "github-repository-search",
     "serper-google-search",
+    "skills-sh",
     "tavily-search",
     "x-api-search-posts"
   ]);
@@ -86,6 +87,19 @@ test("built-in templates cover the search catalog and Cloudflare image generatio
   const githubTemplate = catalog.apis.find((template) => template.id === "github-repository-search");
   assert.ok(githubTemplate);
   assert.deepEqual(githubTemplate.probe.assertions, [{ path: "resources.search", exists: true }]);
+
+  const skillsSh = requests["skills-sh"];
+  assert.ok(skillsSh);
+  assert.equal(skillsSh.init.method, "GET");
+  assert.equal(new URL(skillsSh.url).hostname, "skills.sh");
+  assert.equal(new URL(skillsSh.url).pathname, "/api/v1/skills/search");
+  assert.equal(new Headers(skillsSh.init.headers).get("Authorization"), "Bearer test-secret");
+  assert.equal(new URL(skillsSh.url).searchParams.get("q"), "pdf");
+  assert.equal(new URL(skillsSh.url).searchParams.get("limit"), "1");
+  const skillsShTemplate = catalog.apis.find((template) => template.id === "skills-sh");
+  assert.ok(skillsShTemplate);
+  assert.equal(skillsShTemplate.credential.defaultName, "VERCEL_OIDC_TOKEN");
+  assert.deepEqual(skillsShTemplate.probe.assertions, [{ path: "data", exists: true }]);
 
   const serper = requests["serper-google-search"];
   assert.ok(serper);

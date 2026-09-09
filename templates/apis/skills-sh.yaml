@@ -1,0 +1,40 @@
+schemaVersion: 1
+kind: api-template
+id: skills-sh
+name: skills.sh Agent Skills Directory
+group: search
+description: Public Agent Skills directory search used by SkillPicker and other skill-discovery workflows.
+enabled: true
+service:
+  baseUrl: https://skills.sh
+  docsUrl: https://skills.sh/docs/api#authentication
+credential:
+  type: environment
+  defaultName: VERCEL_OIDC_TOKEN
+  placement:
+    type: bearer
+probe:
+  method: GET
+  url: https://skills.sh/api/v1/skills/search
+  headers:
+    Accept: application/json
+  query:
+    q: pdf
+    limit: 1
+  expectedStatus: [200]
+  assertions:
+    - path: data
+      exists: true
+  timeoutMs: 15000
+usage:
+  notes: >-
+    Search GET /api/v1/skills/search with q and limit. Send Authorization: Bearer $VERCEL_OIDC_TOKEN.
+    Use this for per-query Agent Skill discovery. The all-time leaderboard is a separate endpoint and is
+    not the health probe. Authenticated requests are required; unauthenticated calls return
+    authentication_required. The health probe runs a one-result search and therefore consumes a request.
+  example: |
+    curl -s --get "https://skills.sh/api/v1/skills/search" \
+      -H "Accept: application/json" \
+      -H "Authorization: Bearer $VERCEL_OIDC_TOKEN" \
+      --data-urlencode "q=marketing" \
+      --data-urlencode "limit=5"
