@@ -130,6 +130,31 @@ test("CLI exposes and configures a site template without probing it", async () =
   });
 });
 
+test("CLI exposes and configures the DeepSeek LLM template", async () => {
+  await withTempPaths(async (paths) => {
+    const env: NodeJS.ProcessEnv = { ...process.env, AGENTPULSE_CONFIG_DIR: paths.configDir, AGENTPULSE_STATE_DIR: paths.stateDir };
+    delete env.DEEPSEEK_API_KEY;
+
+    const templates = await run(process.execPath, [cliPath, "templates", "--group", "llm", "--json"], { env });
+    const templateEnvelope = JSON.parse(templates.stdout) as {
+      data: { groups: Array<{ id: string }>; templates: Array<{ id: string; defaultCredentialEnv: string }> };
+    };
+    assert.deepEqual(templateEnvelope.data.groups.map((group) => group.id), ["llm"]);
+    const template = templateEnvelope.data.templates[0];
+    assert.equal(template?.id, "deepseek");
+    assert.equal(template?.defaultCredentialEnv, "DEEPSEEK_API_KEY");
+
+    await run(process.execPath, [cliPath, "api", "add", "--template", "deepseek", "--configured-at", "~/.zshenv", "--json"], { env });
+
+    const health = await run(process.execPath, [cliPath, "group", "llm", "--health", "--json"], { env });
+    const healthEnvelope = JSON.parse(health.stdout) as {
+      data: { apis: Array<{ health: { status: string; error?: { category: string } } }> };
+    };
+    assert.equal(healthEnvelope.data.apis[0]?.health.status, "misconfigured");
+    assert.equal(healthEnvelope.data.apis[0]?.health.error?.category, "credential_missing");
+  });
+});
+
 test("CLI exposes and configures the Cloudflare GPT Image 2 template", async () => {
   await withTempPaths(async (paths) => {
     const env: NodeJS.ProcessEnv = { ...process.env, AGENTPULSE_CONFIG_DIR: paths.configDir, AGENTPULSE_STATE_DIR: paths.stateDir };

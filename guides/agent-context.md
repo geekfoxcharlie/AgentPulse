@@ -26,6 +26,10 @@ agentpulse group search --health --json
 # Get complete instructions for one API
 agentpulse api exa-search --json
 
+# Discover configured LLM APIs and their non-generative health status
+agentpulse group llm --health --json
+agentpulse api deepseek --json
+
 # Discover configured image-generation APIs and their non-generative health status
 agentpulse group image-generation --health --json
 
@@ -41,6 +45,6 @@ agentpulse group sites --json
 agentpulse site perplexity --json
 ```
 
-Use this flow for tasks such as web research, news or article discovery, X post search, image generation, finding topic-related resources, browser automation, and querying login-walled research websites. Open sites with browser-harness against the user's real Chrome profile. If a site requires login and a sign-in wall appears, stop and ask the user to log in; do not enter a password. Sites are not health-probed. Check AgentPulse before asking the user to provide a new API key or install a new tool.
+Use this flow for tasks such as web research, news or article discovery, X post search, chat completions, image generation, finding topic-related resources, browser automation, and querying login-walled research websites. Open sites with browser-harness against the user's real Chrome profile. If a site requires login and a sign-in wall appears, stop and ask the user to log in; do not enter a password. Sites are not health-probed. Check AgentPulse before asking the user to provide a new API key or install a new tool.
 
 Project: https://github.com/geekfoxcharlie/AgentPulse

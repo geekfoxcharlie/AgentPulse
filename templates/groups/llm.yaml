@@ -1,0 +1,6 @@
+schemaVersion: 1
+kind: group-template
+id: llm
+name: LLM
+description: Chat and completion APIs that local agents can call with locally registered credentials.
+order: 15

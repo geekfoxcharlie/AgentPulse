@@ -28,12 +28,13 @@ function materialize(template: ApiTemplate): ApiDefinition {
   return api;
 }
 
-test("built-in templates cover the search catalog and Cloudflare image generation", async () => {
+test("built-in templates cover the search catalog, LLM, and Cloudflare image generation", async () => {
   const catalog = await loadTemplateCatalog();
-  assert.deepEqual(catalog.groups.map((group) => group.id), ["search", "image-generation", "browser", "sites"]);
+  assert.deepEqual(catalog.groups.map((group) => group.id), ["search", "llm", "image-generation", "browser", "sites"]);
   assert.deepEqual(catalog.apis.map((api) => api.id), [
     "brave-search",
     "cloudflare-gpt-image-2",
+    "deepseek",
     "exa-search",
     "firecrawl-search",
     "github-repository-search",
@@ -124,6 +125,20 @@ test("built-in templates cover the search catalog and Cloudflare image generatio
   assert.equal(new Headers(cloudflare.init.headers).get("Authorization"), "Bearer test-secret");
   assert.equal(new Headers(cloudflare.init.headers).get("cf-aig-gateway-id"), null);
   assert.equal(cloudflare.init.body, undefined);
+
+  const deepseek = requests["deepseek"];
+  assert.ok(deepseek);
+  assert.equal(deepseek.init.method, "GET");
+  assert.equal(new URL(deepseek.url).hostname, "api.deepseek.com");
+  assert.equal(new URL(deepseek.url).pathname, "/models");
+  assert.equal(new Headers(deepseek.init.headers).get("Authorization"), "Bearer test-secret");
+  assert.equal(deepseek.init.body, undefined);
+  const deepseekTemplate = catalog.apis.find((template) => template.id === "deepseek");
+  assert.ok(deepseekTemplate);
+  assert.equal(deepseekTemplate.group, "llm");
+  assert.equal(deepseekTemplate.credential.defaultName, "DEEPSEEK_API_KEY");
+  assert.deepEqual(deepseekTemplate.probe.assertions, [{ path: "data", exists: true }]);
+  assert.match(deepseekTemplate.usage.example, /deepseek-flash/);
 });
 
 test("template instantiation materializes user configuration without a secret", async () => {
@@ -134,6 +149,17 @@ test("template instantiation materializes user configuration without a secret", 
     const registry = await loadRegistry(paths);
     assert.deepEqual(registry.groups.map((group) => group.id), ["search"]);
     assert.deepEqual(registry.apis.map((item) => item.id), ["brave-search"]);
+  });
+});
+
+test("DeepSeek template materializes the llm group and default credential", async () => {
+  await withTempPaths(async (paths) => {
+    const api = await instantiateApiTemplate(paths, "deepseek", "~/.zshenv");
+    assert.equal(api.credential.name, "DEEPSEEK_API_KEY");
+    assert.equal(api.group, "llm");
+    const registry = await loadRegistry(paths);
+    assert.deepEqual(registry.groups.map((group) => group.id), ["llm"]);
+    assert.deepEqual(registry.apis.map((item) => item.id), ["deepseek"]);
   });
 });
 
