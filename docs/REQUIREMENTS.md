@@ -119,6 +119,10 @@ CLI 能力 MUST NOT 声明 HTTP 服务地址、凭据引用或环境变量需求
 
 该模板的最小健康检查 MUST 使用不调用模型的 `GET https://api.deepseek.com/models`，验证 `data` 字段存在。调用说明 MUST 区分此非生成性检查与真实对话补全，并写明优先使用 `deepseek-flash`，而不是已退役但仍会路由过来的 `deepseek-v4-flash` / `deepseek-v4-flash-vision-exp`。
 
+内置 `llm` 目录 MUST 同时提供 `opencode-go` 模板。调用示例 MUST 使用 OpenAI 兼容端点 `POST https://opencode.ai/zen/go/v1/chat/completions`，默认模型 `deepseek-v4.1-flash`（DeepSeek V4.1 Flash），并以 `OPENCODE_GO_API_KEY` Bearer 认证作为默认安全配置。
+
+该模板的最小健康检查 MUST 使用不调用模型的 `GET https://opencode.ai/zen/go/v1/usage`，验证 `usage` 字段存在；该端点校验密钥与有效的 Go 订阅，有效密钥但无 Go 订阅时返回 403。调用说明 MUST 写明 Go 面向 coding agent、需发送稳定的 `x-opencode-session` 头，并说明公开的 `GET /models` 不校验凭据。
+
 ### R2：凭据元信息
 
 AgentPulse MUST 记录凭据的环境变量名、配置位置和请求注入方式，但 MUST NOT 把真实密钥值作为 API 配置的一部分保存。

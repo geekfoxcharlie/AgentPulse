@@ -29,6 +29,7 @@ agentpulse api exa-search --json
 # Discover configured LLM APIs and their non-generative health status
 agentpulse group llm --health --json
 agentpulse api deepseek --json
+agentpulse api opencode-go --json
 
 # Discover configured image-generation APIs and their non-generative health status
 agentpulse group image-generation --health --json

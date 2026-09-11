@@ -38,6 +38,7 @@ test("built-in templates cover the search catalog, LLM, and Cloudflare image gen
     "exa-search",
     "firecrawl-search",
     "github-repository-search",
+    "opencode-go",
     "serper-google-search",
     "skills-sh",
     "tavily-search",
@@ -139,6 +140,20 @@ test("built-in templates cover the search catalog, LLM, and Cloudflare image gen
   assert.equal(deepseekTemplate.credential.defaultName, "DEEPSEEK_API_KEY");
   assert.deepEqual(deepseekTemplate.probe.assertions, [{ path: "data", exists: true }]);
   assert.match(deepseekTemplate.usage.example, /deepseek-flash/);
+
+  const opencodeGo = requests["opencode-go"];
+  assert.ok(opencodeGo);
+  assert.equal(opencodeGo.init.method, "GET");
+  assert.equal(new URL(opencodeGo.url).hostname, "opencode.ai");
+  assert.equal(new URL(opencodeGo.url).pathname, "/zen/go/v1/usage");
+  assert.equal(new Headers(opencodeGo.init.headers).get("Authorization"), "Bearer test-secret");
+  assert.equal(opencodeGo.init.body, undefined);
+  const opencodeGoTemplate = catalog.apis.find((template) => template.id === "opencode-go");
+  assert.ok(opencodeGoTemplate);
+  assert.equal(opencodeGoTemplate.group, "llm");
+  assert.equal(opencodeGoTemplate.credential.defaultName, "OPENCODE_GO_API_KEY");
+  assert.deepEqual(opencodeGoTemplate.probe.assertions, [{ path: "usage", exists: true }]);
+  assert.match(opencodeGoTemplate.usage.example, /deepseek-v4\.1-flash/);
 });
 
 test("template instantiation materializes user configuration without a secret", async () => {
@@ -160,6 +175,17 @@ test("DeepSeek template materializes the llm group and default credential", asyn
     const registry = await loadRegistry(paths);
     assert.deepEqual(registry.groups.map((group) => group.id), ["llm"]);
     assert.deepEqual(registry.apis.map((item) => item.id), ["deepseek"]);
+  });
+});
+
+test("OpenCode Go template materializes the llm group and default credential", async () => {
+  await withTempPaths(async (paths) => {
+    const api = await instantiateApiTemplate(paths, "opencode-go", "~/.zshenv");
+    assert.equal(api.credential.name, "OPENCODE_GO_API_KEY");
+    assert.equal(api.group, "llm");
+    const registry = await loadRegistry(paths);
+    assert.deepEqual(registry.groups.map((group) => group.id), ["llm"]);
+    assert.deepEqual(registry.apis.map((item) => item.id), ["opencode-go"]);
   });
 });
 

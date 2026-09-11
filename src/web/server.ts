@@ -278,7 +278,7 @@ function renderEmptyState(paths: ConfigPaths): string {
   return `<section class="module empty">
     <p class="eyebrow">NO MODULES INSTALLED</p>
     <h2>No capability registered on this machine.</h2>
-    <p>Built-in templates cover independent search APIs, DeepSeek chat completions, Cloudflare GPT Image 2, the browser-harness CLI, and research websites opened in the real browser. Instantiate one and it appears here as a channel.</p>
+    <p>Built-in templates cover independent search APIs, DeepSeek and OpenCode Go chat completions, Cloudflare GPT Image 2, the browser-harness CLI, and research websites opened in the real browser. Instantiate one and it appears here as a channel.</p>
     <pre><code>agentpulse templates --group search
 agentpulse api add --template brave-search --configured-at ~/.zshenv
 agentpulse cli add --template browser-harness

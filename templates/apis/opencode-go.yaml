@@ -1,0 +1,42 @@
+schemaVersion: 1
+kind: api-template
+id: opencode-go
+name: OpenCode Go
+group: llm
+description: OpenCode Go subscription gateway for open coding models, exposed as an OpenAI-compatible chat completions API. Default model is deepseek-v4.1-flash (DeepSeek V4.1 Flash).
+enabled: true
+service:
+  baseUrl: https://opencode.ai/zen/go/v1
+  docsUrl: https://opencode.ai/docs/go/
+credential:
+  type: environment
+  defaultName: OPENCODE_GO_API_KEY
+  placement:
+    type: bearer
+probe:
+  method: GET
+  url: https://opencode.ai/zen/go/v1/usage
+  expectedStatus: [200]
+  assertions:
+    - path: usage
+      exists: true
+  timeoutMs: 10000
+usage:
+  notes: >-
+    Default model is deepseek-v4.1-flash (DeepSeek V4.1 Flash). Chat completions
+    are OpenAI-compatible at POST /chat/completions under
+    https://opencode.ai/zen/go/v1. Go is a $10/month subscription intended for
+    coding agents: send typical coding-agent traffic, identify the client with its
+    own user agent rather than a generic SDK or HTTP library name, and send a
+    stable x-opencode-session header per conversation for routing and prompt
+    caching. It is not a general-purpose gateway, so traffic is monitored for
+    abuse. The health probe calls the non-generative GET /usage endpoint, which
+    validates the key and the active Go subscription without generating text; a
+    valid key without a Go subscription returns 403. The public GET /models list
+    does not verify the credential.
+  example: |
+    curl -s https://opencode.ai/zen/go/v1/chat/completions \
+      -H "Authorization: Bearer $OPENCODE_GO_API_KEY" \
+      -H "Content-Type: application/json" \
+      -H "x-opencode-session: my-coding-agent-session-1" \
+      -d '{"model":"deepseek-v4.1-flash","messages":[{"role":"user","content":"ping"}],"max_tokens":16}'

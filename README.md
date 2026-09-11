@@ -6,7 +6,7 @@ Agents query and configure AgentPulse through its CLI, then call third-party API
 
 ## Project status
 
-The 0.1 MVP is implemented. Register locally available API keys, tokens, and required account identifiers as environment variables to run real health checks. The built-in catalog includes Exa, Firecrawl Search, Tavily, X API Search Posts, Serper, Brave Search, GitHub Repository Search, skills.sh, DeepSeek (default `deepseek-flash`), Cloudflare GPT Image 2, the browser-harness CLI for driving the local Chrome profile, and research websites opened in that browser. See the [0.1 MVP Spec](.kiro/specs/0.1-mvp/requirements.md), the [Cloudflare image-generation spec](.kiro/specs/0.2-cloudflare-image-generation/requirements.md), the [CLI capabilities spec](.kiro/specs/0.3-cli-capabilities/requirements.md), the [GitHub repository-search spec](.kiro/specs/0.4-github-repository-search/requirements.md), and the [site capabilities spec](.kiro/specs/0.5-site-capabilities/requirements.md) for scope and local setup steps.
+The 0.1 MVP is implemented. Register locally available API keys, tokens, and required account identifiers as environment variables to run real health checks. The built-in catalog includes Exa, Firecrawl Search, Tavily, X API Search Posts, Serper, Brave Search, GitHub Repository Search, skills.sh, DeepSeek (default `deepseek-flash`), OpenCode Go (default `deepseek-v4.1-flash`), Cloudflare GPT Image 2, the browser-harness CLI for driving the local Chrome profile, and research websites opened in that browser. See the [0.1 MVP Spec](.kiro/specs/0.1-mvp/requirements.md), the [Cloudflare image-generation spec](.kiro/specs/0.2-cloudflare-image-generation/requirements.md), the [CLI capabilities spec](.kiro/specs/0.3-cli-capabilities/requirements.md), the [GitHub repository-search spec](.kiro/specs/0.4-github-repository-search/requirements.md), and the [site capabilities spec](.kiro/specs/0.5-site-capabilities/requirements.md) for scope and local setup steps.
 
 ## Quick start
 
@@ -48,6 +48,16 @@ agentpulse api add --template deepseek --configured-at ~/.zshenv
 agentpulse group llm --health --json
 agentpulse api deepseek --json
 ```
+
+For the OpenCode Go subscription, make an `OPENCODE_GO_API_KEY` available to the current process, then register the template. The Go key is the OpenAI-compatible gateway at `https://opencode.ai/zen/go/v1`; the default model is `deepseek-v4.1-flash` (DeepSeek V4.1 Flash). The health probe calls the non-generative `GET /usage` endpoint, which validates the key and the active Go subscription without generating text:
+
+```bash
+agentpulse api add --template opencode-go --configured-at ~/.zshenv
+agentpulse group llm --health --json
+agentpulse api opencode-go --json
+```
+
+OpenCode Go is intended for coding agents: send typical coding-agent traffic, identify your client with its own user agent, and send a stable `x-opencode-session` header per conversation. A valid key without a Go subscription fails the probe with `403`.
 
 For Cloudflare GPT Image 2, make both `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` available to the current process, then register the template and inspect it like a search API:
 
