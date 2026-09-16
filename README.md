@@ -33,7 +33,7 @@ agentpulse group search --health --json
 agentpulse api github-repository-search --json
 ```
 
-For skills.sh Agent Skills search, make a `VERCEL_OIDC_TOKEN` available to the current process, then register the template. The health probe runs a one-result search.
+For skills.sh Agent Skills search, make a `VERCEL_OIDC_TOKEN` available to the current process, then register the template at `~/.zshenv` like the other APIs. This value is a short-lived Vercel OIDC JWT (about 12 hours in local development), so it cannot behave like a long-lived search key. The template example is the refresh command: `vercel env pull` into a temp file, `export` the new value, then replace only that line in `~/.zshenv`. Pull never onto `~/.zshenv` itself. The linked Vercel project is only the minting source; do not register a product repository's `.env.local`. AgentPulse never sources or writes that file. The health probe runs a one-result search.
 
 ```bash
 agentpulse api add --template skills-sh --configured-at ~/.zshenv

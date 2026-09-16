@@ -102,6 +102,15 @@ test("built-in templates cover the search catalog, LLM, and Cloudflare image gen
   assert.ok(skillsShTemplate);
   assert.equal(skillsShTemplate.credential.defaultName, "VERCEL_OIDC_TOKEN");
   assert.deepEqual(skillsShTemplate.probe.assertions, [{ path: "data", exists: true }]);
+  assert.match(skillsShTemplate.usage.notes, /vercel env pull/);
+  assert.match(skillsShTemplate.usage.notes, /12 hours/);
+  assert.match(skillsShTemplate.usage.notes, /~\/\.zshenv/);
+  assert.match(skillsShTemplate.usage.notes, /Do not register a product repository's \.env\.local/);
+  assert.match(skillsShTemplate.usage.example, /vercel env pull --yes --cwd/);
+  assert.match(skillsShTemplate.usage.example, /export VERCEL_OIDC_TOKEN=/);
+  assert.match(skillsShTemplate.usage.example, /~\/\.zshenv/);
+  assert.match(skillsShTemplate.usage.example, /awk -v t="\$VERCEL_OIDC_TOKEN"/);
+  assert.match(skillsShTemplate.usage.example, /\^export VERCEL_OIDC_TOKEN=/);
 
   const serper = requests["serper-google-search"];
   assert.ok(serper);

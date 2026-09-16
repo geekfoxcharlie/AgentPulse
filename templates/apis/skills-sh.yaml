@@ -31,8 +31,27 @@ usage:
     Search GET /api/v1/skills/search with q and limit. Send Authorization: Bearer $VERCEL_OIDC_TOKEN.
     Use this for per-query Agent Skill discovery. The all-time leaderboard is a separate endpoint and is
     not the health probe. Authenticated requests are required; unauthenticated calls return
-    authentication_required. The health probe runs a one-result search and therefore consumes a request.
+    authentication_required. VERCEL_OIDC_TOKEN is a short-lived Vercel OIDC JWT (about 12 hours in local
+    development). A set environment variable can still be expired. This is a provider constraint: the
+    documented v1 API authenticates with Vercel OIDC, not a long-lived key, so this credential cannot
+    behave like the other search API keys. Register configuredAt at ~/.zshenv, the same file as the other
+    APIs. Do not register a product repository's .env.local. A Vercel-linked project directory is only the
+    minting source for `vercel env pull --cwd`. Before calling, and whenever the provider returns 401,
+    invalid_token, or authentication_required, run the example: pull into a temp file (never onto ~/.zshenv),
+    export the new value into the current process, then replace only the VERCEL_OIDC_TOKEN line in ~/.zshenv.
+    The Vercel CLI must be installed, `vercel whoami` must succeed, and the cwd must already be `vercel
+    link`ed. AgentPulse never sources, reads, or writes ~/.zshenv, so a file update alone does not change
+    this process. The health probe runs a one-result search and therefore consumes a request.
   example: |
+    vercel env pull --yes --cwd <linked-project-dir> /tmp/vercel-oidc.env
+    export VERCEL_OIDC_TOKEN="$(grep -E '^VERCEL_OIDC_TOKEN=' /tmp/vercel-oidc.env | cut -d= -f2- | sed 's/^"//;s/"$//')"
+    rm -f /tmp/vercel-oidc.env
+    awk -v t="$VERCEL_OIDC_TOKEN" '
+      BEGIN { line = "export VERCEL_OIDC_TOKEN=" t }
+      /^export VERCEL_OIDC_TOKEN=/ { print line; found=1; next }
+      { print }
+      END { if (!found) print line }
+    ' ~/.zshenv > /tmp/zshenv.next && mv /tmp/zshenv.next ~/.zshenv
     curl -s --get "https://skills.sh/api/v1/skills/search" \
       -H "Accept: application/json" \
       -H "Authorization: Bearer $VERCEL_OIDC_TOKEN" \

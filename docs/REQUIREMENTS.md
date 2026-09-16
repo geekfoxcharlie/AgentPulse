@@ -73,13 +73,16 @@ AgentPulse MUST 假设在同一操作系统用户下运行的本地 Agent 是可
 - X API Search Posts；
 - Serper Google Search；
 - Brave Search；
-- GitHub Repository Search。
+- GitHub Repository Search；
+- skills.sh Agent Skills Directory。
 
 这里的“独立”是指 Agent 可以直接向服务的数据 API 发送请求并获得机器可读搜索结果；目录 MUST NOT 把必须经由语言模型调用的服务端搜索工具作为独立搜索 API 模板提供。
 
 该目录是经过人工研究后维护的候选集合，不构成运行时的质量排名或自动路由规则。Brave Search 保留为独立索引选项，但本机 Agent 在依赖它前 SHOULD 先查询其缓存健康状态。用户或可信 Agent 仍可以通过 CLI 登记其他 API；它们不因此成为内置推荐目录的一部分。
 
 GitHub Repository Search 模板 MUST 使用 GitHub REST `GET /search/repositories`，以 `GITHUB_TOKEN` Bearer 认证作为默认安全配置，并在调用说明中覆盖 GitHub 查询限定符、`incomplete_results`、最多 1,000 条结果及限流重试要求。健康检查 MUST 调用不执行搜索的 `GET /rate_limit`，并验证 `resources.search` 存在；它不得把健康状态表述为搜索结果质量或完整性的保证。
+
+skills.sh 模板 MUST 使用 `GET /api/v1/skills/search`，以 `VERCEL_OIDC_TOKEN` Bearer 认证作为默认安全配置。调用说明 MUST 写明该值是短期 Vercel OIDC JWT（本地开发约 12 小时），因此不能像其他搜索密钥一样长期存放后忘记；MUST 把 `configuredAt` 定为 `~/.zshenv`，不得把消费方项目的 `.env.local` 登记为凭据位置；MUST 给出一条可执行的 pull-and-update 命令：用 `vercel env pull` 从已 link 的 Vercel 项目拉到临时文件（不得直接覆盖 `~/.zshenv`）、`export` 到当前进程、再只替换 `~/.zshenv` 中的 `VERCEL_OIDC_TOKEN` 行。已 link 的项目目录只是发证来源，不是凭据存储。系统 MUST NOT 代为拉取或写入该 token。健康检查 MUST 使用 `limit=1` 的搜索请求。
 
 ### R1.2：Cloudflare AI Gateway 图像生成目录
 
@@ -129,7 +132,7 @@ AgentPulse MUST 记录凭据的环境变量名、配置位置和请求注入方�
 
 当端点路径还需要一个或多个非秘密的环境变量（例如账户 ID）时，系统 MUST 同样记录变量名、配置位置和用途，但不得记录变量值。附加环境变量可选地声明 Bearer、Header 或 Query 注入方式，以支持多个请求凭据。
 
-`~/.zshenv` 是 `--configured-at` 文档和示例中的默认位置；其他实际配置位置同样有效。AgentPulse MUST NOT source、读取或写入该位置；它只检查变量是否已出现在自身进程环境中。
+`~/.zshenv` 是 `--configured-at` 文档和示例中的默认位置；其他实际配置位置同样有效。AgentPulse MUST NOT source、读取或写入该位置；它只检查变量是否已出现在自身进程环境中。短期凭据的刷新步骤属于该 API 的调用说明，不由 AgentPulse 执行。
 
 AgentPulse 的查询结果和 Web 页面 MUST 默认不输出环境变量的真实值。Agent 可以根据变量名和位置自行读取凭据并完成直接调用。
 
