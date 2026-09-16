@@ -81,14 +81,13 @@ function renderDashboard(
     "AgentPulse · Field Console",
     `<main class="shell">
       <div class="topbar">
-        <span class="brand"><i class="brandchip" aria-hidden="true"></i>AGENTPULSE <em>FIELD CONSOLE</em></span>
+        <span class="brand"><svg class="mark" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4.5" width="18" height="3.2"/><rect x="3" y="10.4" width="13.5" height="3.2"/><rect x="3" y="16.3" width="8.5" height="3.2"/></svg>AgentPulse <em>field console</em></span>
         <span class="topnote">MODE <b>READ-ONLY</b></span>
         <span class="topnote">LOCAL HOST ONLY</span>
       </div>
 
       <header class="masthead">
         <div class="masthead-copy">
-          <p class="eyebrow">LOCAL CAPABILITY INDEX</p>
           <h1>ALL CHANNELS<br>ON THIS MACHINE,<br><em>ONE PANEL.</em></h1>
           <p class="lede">Configured capabilities on this machine: what exists, how to call it, and the last probe snapshot. This page renders cached results only — refreshes happen through the CLI and never from this page.</p>
         </div>
@@ -161,8 +160,8 @@ function renderGroup(detail: Awaited<ReturnType<typeof groupView>>): string {
   return `<section class="module" id="${escapeHtml(detail.group.id)}">
     <div class="module-head">
       <div class="module-id">
-        <p class="eyebrow">MODULE / ${escapeHtml(detail.group.id)}</p>
         <h2>${escapeHtml(detail.group.name)}</h2>
+        <p class="module-key">${escapeHtml(detail.group.id)}</p>
       </div>
       <p class="module-desc">${escapeHtml(detail.group.description)}</p>
       <div class="module-meter">
@@ -276,7 +275,6 @@ function renderSiteDetail(site: SiteView, healthMeta: string): string {
 
 function renderEmptyState(paths: ConfigPaths): string {
   return `<section class="module empty">
-    <p class="eyebrow">NO MODULES INSTALLED</p>
     <h2>No capability registered on this machine.</h2>
     <p>Built-in templates cover independent search APIs, DeepSeek and OpenCode Go chat completions, Cloudflare GPT Image 2, the browser-harness CLI, and research websites opened in the real browser. Instantiate one and it appears here as a channel.</p>
     <pre><code>agentpulse templates --group search
@@ -291,9 +289,8 @@ function renderFailure(message: string, paths: ConfigPaths): string {
   return page(
     "AgentPulse · Configuration needs attention",
     `<main class="shell failure">
-      <div class="topbar"><span class="brand"><i class="brandchip" aria-hidden="true"></i>AGENTPULSE <em>FIELD CONSOLE</em></span><span class="topnote">FAULT</span></div>
+      <div class="topbar"><span class="brand"><svg class="mark" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4.5" width="18" height="3.2"/><rect x="3" y="10.4" width="13.5" height="3.2"/><rect x="3" y="16.3" width="8.5" height="3.2"/></svg>AgentPulse <em>field console</em></span><span class="topnote">FAULT</span></div>
       <section class="module empty">
-        <p class="eyebrow">PANEL OFFLINE</p>
         <h2>Repair this local reference first.</h2>
         <p>${escapeHtml(message)}</p>
         <pre><code>agentpulse validate --json</code></pre>
@@ -304,7 +301,9 @@ function renderFailure(message: string, paths: ConfigPaths): string {
 }
 
 function page(title: string, content: string): string {
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="icon" href="data:,"><title>${escapeHtml(title)}</title><style>${styles}</style></head><body>${content}</body></html>`;
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="icon" href="data:,"><title>${escapeHtml(title)}</title><style>${styles}</style></head><body>
+<!-- THESIS: a night-watch instrument panel for local capabilities, not a settings page. OWN-WORLD: dark chassis, CRT-green lamps, condensed display, three-bar stack. STORY: see which channels are live, open one, copy the call. FIRST VIEWPORT: brand, headline, waveform of last probes. FORM: field console. FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, and DESIGN.md -->
+${content}</body></html>`;
 }
 
 function formatDate(value: string): string {
@@ -324,6 +323,7 @@ const styles = `
     --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
     --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", sans-serif;
     --display: "Avenir Next Condensed", "Helvetica Neue", "Arial Narrow", var(--sans);
+    --radius: 3px;
   }
   * { box-sizing: border-box; }
   body { margin: 0; color: var(--ink); background: var(--chassis); font-family: var(--sans); font-size: 14px; line-height: 1.5; -webkit-font-smoothing: antialiased; }
@@ -335,15 +335,14 @@ const styles = `
   :focus-visible { outline: 2px solid var(--alarm); outline-offset: 3px; border-radius: 2px; }
 
   .topbar { display: flex; align-items: center; gap: 28px; padding: 14px 0 12px; border-bottom: 1px solid var(--line); font: 600 11px/1 var(--mono); letter-spacing: 0.12em; color: var(--ink-dim); }
-  .brand { display: flex; align-items: center; gap: 10px; color: var(--ink); }
+  .brand { display: flex; align-items: center; gap: 10px; color: var(--ink); font-family: var(--sans); font-size: 13px; letter-spacing: 0.04em; text-transform: none; }
   .brand em { font-style: normal; color: var(--ink-faint); font-weight: 500; }
-  .brandchip { width: 9px; height: 9px; background: var(--ok); box-shadow: 0 0 10px 1px rgba(63, 206, 136, 0.55); }
+  .brand .mark { width: 18px; height: 18px; fill: var(--ok); }
   .topnote { margin-left: auto; }
   .topnote b { color: var(--ink); font-weight: 700; }
   .topnote + .topnote { margin-left: 0; }
 
   .masthead { display: grid; grid-template-columns: minmax(0, 1.9fr) auto; gap: 36px; align-items: end; padding: 40px 0 30px; }
-  .eyebrow { margin: 0 0 10px; color: var(--ok); font: 700 10px/1.2 var(--mono); letter-spacing: 0.22em; }
   h1 { margin: 0 0 16px; font-family: var(--display); font-weight: 800; font-size: clamp(40px, 5.6vw, 64px); line-height: 0.98; letter-spacing: 0.01em; text-transform: uppercase; }
   h1 em { font-style: normal; color: var(--ink-dim); }
   .lede { max-width: 640px; margin: 0; color: var(--ink-dim); font-size: 14px; line-height: 1.65; }
@@ -380,6 +379,7 @@ const styles = `
   .module::after { bottom: -1px; right: -1px; border-width: 0 2px 2px 0; }
   .module-head { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; gap: 28px; align-items: end; padding: 22px 24px 16px; border-bottom: 1px solid var(--line-soft); }
   .module-head h2 { margin: 0; font-family: var(--display); font-weight: 700; font-size: 26px; letter-spacing: 0.03em; text-transform: uppercase; line-height: 1; }
+  .module-key { margin: 6px 0 0; color: var(--ink-faint); font: 600 11px/1 var(--mono); letter-spacing: 0.08em; }
   .module-desc { margin: 0; color: var(--ink-dim); font-size: 12.5px; line-height: 1.55; }
   .module-meter { display: flex; align-items: center; gap: 14px; }
   .ch-count { color: var(--ink-faint); font: 700 11px/1 var(--mono); letter-spacing: 0.1em; }
