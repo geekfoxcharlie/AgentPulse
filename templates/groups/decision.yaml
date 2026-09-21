@@ -1,0 +1,6 @@
+schemaVersion: 1
+kind: group-template
+id: decision
+name: Decision
+description: Structured-decision model APIs that return typed answers for code to branch, sort, and route on.
+order: 17

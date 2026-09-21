@@ -1,0 +1,44 @@
+schemaVersion: 1
+kind: api-template
+id: typesafe
+name: TypeSafe Jev
+group: decision
+description: TypeSafe System One structured-decision API. Model Jev evaluates typed questions against a state and returns typed answers, not generated text. Default model is jev-latest (jev-1.13.0).
+enabled: true
+service:
+  baseUrl: https://api.typesafe.ai
+  docsUrl: https://docs.typesafe.ai/api
+credential:
+  type: environment
+  defaultName: TYPESAFE_API_KEY
+  placement:
+    type: bearer
+probe:
+  method: GET
+  url: https://api.typesafe.ai/v1/models
+  expectedStatus: [200]
+  assertions:
+    - path: models
+      exists: true
+  timeoutMs: 10000
+usage:
+  notes: >-
+    Jev is TypeSafe's flagship System One model. Send a `state` plus a map of
+    typed `questions` to POST /v1/systemone and get typed `answers` back under
+    the same keys, with no generated text to parse. Three question types exist:
+    `choice` (pick one option from a criteria map), `score` (rate the state
+    against an ordered criteria array of 2-10 levels), and `noul` (yes/no
+    probability). All three can be mixed in one request; every question is
+    evaluated in parallel against the same state, so adding questions barely
+    changes latency. `choice` and `score` answers also carry a `confidence`
+    between 0 and 1 for confidence-gated routing. Default model is `jev-latest`
+    (currently jev-1.13.0); pin the versioned ID if you tune thresholds against
+    it. Input is text only; pre-process images, audio, or video into text or
+    structured fields. The health probe calls the non-generative
+    GET /v1/models, which validates the key without evaluating any state or
+    incurring inference; the POST /v1/systemone evaluation call is billable.
+  example: |
+    curl -s https://api.typesafe.ai/v1/systemone \
+      -H "Authorization: Bearer $TYPESAFE_API_KEY" \
+      -H "Content-Type: application/json" \
+      -d '{"state":"Help! My payouts have been failing for 3 days.","model":"jev-latest","questions":{"department":{"type":"choice","instructions":"Which team should handle this?","criteria":{"billing":"Payments, invoicing, refunds","technical":"Bugs, outages, integrations"}},"is_urgent":{"type":"noul","instructions":"Does this convey urgency?"}}}'

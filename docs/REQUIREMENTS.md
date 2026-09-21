@@ -126,6 +126,14 @@ CLI 能力 MUST NOT 声明 HTTP 服务地址、凭据引用或环境变量需求
 
 该模板的最小健康检查 MUST 使用不调用模型的 `GET https://opencode.ai/zen/go/v1/usage`，验证 `usage` 字段存在；该端点校验密钥与有效的 Go 订阅，有效密钥但无 Go 订阅时返回 403。调用说明 MUST 写明 Go 面向 coding agent、需发送稳定的 `x-opencode-session` 头，并说明公开的 `GET /models` 不校验凭据。
 
+### R1.6：结构化决策目录
+
+内置 `decision` 目录 MUST 提供 `typesafe` 模板。调用示例 MUST 使用 System One 评估端点 `POST https://api.typesafe.ai/v1/systemone`，默认模型 `jev-latest`（当前 `jev-1.13.0`），并以 `TYPESAFE_API_KEY` Bearer 认证作为默认安全配置。
+
+调用说明 MUST 写明 Jev 返回 typed answers 而非生成文本，覆盖 `choice`、`score`、`noul` 三类问题可在一次请求中混用且针对同一 `state` 并行评估、`choice` 与 `score` 答案带 `confidence`，并说明输入仅支持文本（图像、音频、视频需先转为文本或结构化字段）；MUST 写明默认模型为 `jev-latest`，调过置信度阈值时应固定版本化 ID 而不是依赖会随发布移动的别名。
+
+该模板的最小健康检查 MUST 使用不生成任何答案、也不产生推理费用的 `GET https://api.typesafe.ai/v1/models`，验证 `models` 字段存在。调用说明 MUST 区分此非生成性检查与按输入 token 计费的 `/v1/systemone` 评估调用。
+
 ### R2：凭据元信息
 
 AgentPulse MUST 记录凭据的环境变量名、配置位置和请求注入方式，但 MUST NOT 把真实密钥值作为 API 配置的一部分保存。

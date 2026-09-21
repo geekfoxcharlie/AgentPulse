@@ -28,9 +28,9 @@ function materialize(template: ApiTemplate): ApiDefinition {
   return api;
 }
 
-test("built-in templates cover the search catalog, LLM, and Cloudflare image generation", async () => {
+test("built-in templates cover the search catalog, LLM, decision, and Cloudflare image generation", async () => {
   const catalog = await loadTemplateCatalog();
-  assert.deepEqual(catalog.groups.map((group) => group.id), ["search", "llm", "image-generation", "browser", "sites"]);
+  assert.deepEqual(catalog.groups.map((group) => group.id), ["search", "llm", "decision", "image-generation", "browser", "sites"]);
   assert.deepEqual(catalog.apis.map((api) => api.id), [
     "brave-search",
     "cloudflare-gpt-image-2",
@@ -42,6 +42,7 @@ test("built-in templates cover the search catalog, LLM, and Cloudflare image gen
     "serper-google-search",
     "skills-sh",
     "tavily-search",
+    "typesafe",
     "x-api-search-posts"
   ]);
 
@@ -163,6 +164,21 @@ test("built-in templates cover the search catalog, LLM, and Cloudflare image gen
   assert.equal(opencodeGoTemplate.credential.defaultName, "OPENCODE_GO_API_KEY");
   assert.deepEqual(opencodeGoTemplate.probe.assertions, [{ path: "usage", exists: true }]);
   assert.match(opencodeGoTemplate.usage.example, /deepseek-v4\.1-flash/);
+
+  const typesafe = requests["typesafe"];
+  assert.ok(typesafe);
+  assert.equal(typesafe.init.method, "GET");
+  assert.equal(new URL(typesafe.url).hostname, "api.typesafe.ai");
+  assert.equal(new URL(typesafe.url).pathname, "/v1/models");
+  assert.equal(new Headers(typesafe.init.headers).get("Authorization"), "Bearer test-secret");
+  assert.equal(typesafe.init.body, undefined);
+  const typesafeTemplate = catalog.apis.find((template) => template.id === "typesafe");
+  assert.ok(typesafeTemplate);
+  assert.equal(typesafeTemplate.group, "decision");
+  assert.equal(typesafeTemplate.credential.defaultName, "TYPESAFE_API_KEY");
+  assert.deepEqual(typesafeTemplate.probe.assertions, [{ path: "models", exists: true }]);
+  assert.match(typesafeTemplate.usage.example, /\/v1\/systemone/);
+  assert.match(typesafeTemplate.usage.example, /jev-latest/);
 });
 
 test("template instantiation materializes user configuration without a secret", async () => {
@@ -195,6 +211,17 @@ test("OpenCode Go template materializes the llm group and default credential", a
     const registry = await loadRegistry(paths);
     assert.deepEqual(registry.groups.map((group) => group.id), ["llm"]);
     assert.deepEqual(registry.apis.map((item) => item.id), ["opencode-go"]);
+  });
+});
+
+test("TypeSafe template materializes the decision group and default credential", async () => {
+  await withTempPaths(async (paths) => {
+    const api = await instantiateApiTemplate(paths, "typesafe", "~/.zshenv");
+    assert.equal(api.credential.name, "TYPESAFE_API_KEY");
+    assert.equal(api.group, "decision");
+    const registry = await loadRegistry(paths);
+    assert.deepEqual(registry.groups.map((group) => group.id), ["decision"]);
+    assert.deepEqual(registry.apis.map((item) => item.id), ["typesafe"]);
   });
 });
 
