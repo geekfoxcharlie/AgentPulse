@@ -121,7 +121,12 @@ async function runGroupHealth(
 
       const fingerprint = fingerprintForCli(cli);
       const cached = state.entries[cli.id];
-      if (isCacheCurrent(cached, fingerprint, true, now())) {
+      // A missing command is repaired outside AgentPulse, by installing the tool, and the
+      // fingerprint only covers the definition so it cannot observe that repair. Re-probe
+      // rather than serve a stale "not installed" verdict for the rest of the TTL; a failed
+      // spawn costs about a millisecond, and the next call sees the tool immediately.
+      const wasCommandMissing = cached?.error?.category === "command_missing";
+      if (!wasCommandMissing && isCacheCurrent(cached, fingerprint, true, now())) {
         return [cli.id, snapshotFor(cli, state, now())] as const;
       }
 

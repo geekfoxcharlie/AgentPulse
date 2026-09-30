@@ -111,6 +111,33 @@ test("CLI probe maps healthy, command_missing, exit_code, and timeout outcomes",
   });
 });
 
+test("a cached command_missing verdict is re-probed so an install is seen immediately", async () => {
+  await withTempPaths(async (paths) => {
+    await instantiateCliTemplate(paths, "browser-harness");
+    const now = new Date("2026-08-27T00:00:00.000Z");
+    let runs = 0;
+    let next: CliProbeOutcome = outcome({ code: null, timedOut: false, spawnError: Object.assign(new Error("spawn browser-harness ENOENT"), { code: "ENOENT" }) });
+
+    const missing = await checkGroupHealth(await loadRegistry(paths), "browser", paths, {
+      now: () => now,
+      spawnImpl: async () => (runs += 1, next)
+    });
+    assert.equal(missing["browser-harness"]?.status, "misconfigured");
+    assert.equal(missing["browser-harness"]?.error?.category, "command_missing");
+    assert.equal(runs, 1);
+
+    // The tool is installed out of band, so the fingerprint is unchanged and the entry is
+    // still inside its TTL. The cached "not installed" verdict must not be served.
+    next = outcome({ code: 0 });
+    const installed = await checkGroupHealth(await loadRegistry(paths), "browser", paths, {
+      now: () => new Date(now.getTime() + 1000),
+      spawnImpl: async () => (runs += 1, next)
+    });
+    assert.equal(installed["browser-harness"]?.status, "healthy");
+    assert.equal(runs, 2);
+  });
+});
+
 test("editing a CLI capability invalidates its health cache entry", async () => {
   await withTempPaths(async (paths) => {
     await instantiateCliTemplate(paths, "browser-harness");
