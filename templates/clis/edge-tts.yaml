@@ -1,0 +1,131 @@
+schemaVersion: 1
+kind: cli-template
+id: edge-tts
+name: Edge TTS
+group: text-to-speech
+description: Speech synthesis with Microsoft Edge's neural voices, returning sentence or word timings for Chinese and English, with no credential and no cost.
+enabled: true
+command: edge-tts
+docsUrl: https://github.com/rany2/edge-tts
+install:
+  method: uv-tool
+  command: uv tool install edge-tts
+probe:
+  type: cli
+  args: ["--list-voices"]
+  expectedExit: 0
+  timeoutMs: 30000
+usage:
+  notes: |
+    Speaks Chinese and English with no account, no key and no quota. It is an unofficial
+    client of Microsoft's Edge read-aloud endpoint, so it can rate-limit or change
+    without notice; keep macos-say as an offline fallback.
+
+    Use it whenever something has to line up with the audio: subtitles, caption
+    highlights, a slide change, an image swap, a video cut.
+
+    ## What comes back
+
+    The same audio for every combination below: MP3, MPEG-2 Layer III, 24000 Hz,
+    48 kbps, mono, no ID3 tag. A 433-second Chinese narration returned 80 cues and
+    2.5 MB, so long scripts are fine.
+
+    ## The four combinations
+
+    The CLI gives sentence granularity only. Its `--write-subtitles` file is SRT text,
+    not WebVTT despite the file name, and it splits on the sentence. Word granularity
+    needs the Python library, and the `boundary` argument is mandatory: the default is
+    `SentenceBoundary`, which emits nothing per word, so a call that forgets it
+    silently returns no timings at all.
+
+    ## English
+
+    Sentence, CLI:
+
+        edge-tts -v en-US-JennyNeural --rate=-10% -t "atmosphere. hydrosphere. carbon dioxide." \
+          --write-media en.mp3 --write-subtitles en.srt
+
+    Returns en.mp3 plus three cues, one per sentence:
+
+        1  00:00:00,100 --> 00:00:01,938  atmosphere.
+        2  00:00:01,888 --> 00:00:03,805  hydrosphere.
+        3  00:00:03,805 --> 00:00:06,083  carbon dioxide.
+
+    Word, Python library: every word is its own event, so a multi-word term is split.
+
+        0.106 -> 0.981  'atmosphere'
+        1.944 -> 2.903  'hydrosphere'
+        3.861 -> 4.264  'carbon'
+        4.278 -> 5.181  'dioxide'
+
+    ## Chinese
+
+    Sentence, CLI: the same command.
+
+        1  00:00:00,100 --> 00:00:01,633  大气层。
+        2  00:00:01,583 --> 00:00:02,972  水圈。
+        3  00:00:02,972 --> 00:00:04,513  岩石圈。
+
+    Word, Python library: boundaries follow Chinese words, not characters, so 大气层
+    arrives whole and a sentence splits at its natural word edges. This is the one
+    reason to prefer this tool over macos-say for Chinese.
+
+        0.106 -> 1.008  '大气层'
+        0.106 -> 0.606  '上海'       # the five below are from 上海常住人口有两千四百万。
+        0.633 -> 0.967  '常住'
+        0.981 -> 1.481  '人口'
+        1.564 -> 1.828  '有'
+        1.842 -> 2.869  '两千四百万'
+
+    ## Traps
+
+    - A negative rate needs the equals form. `--rate=-10%` exits 0, `--rate -10%` exits
+      2, because argparse reads the leading `-` as a flag.
+    - A list of terms read as one sentence has no pauses between them. End each term
+      with a full stop to get one utterance per term.
+    - Offsets and durations are in 100-nanosecond ticks, so `offset / 1e7` is seconds.
+
+    ## Voices
+
+    324 total, 24 English and 14 Chinese. Chinese: zh-CN Xiaoxiao, Xiaoyi, Yunjian,
+    Yunxi, Yunxia, Yunyang, plus the Liaoning and Shaanxi dialects Xiaobei and Xiaoni;
+    zh-TW HsiaoChen, HsiaoYu, YunJhe; zh-HK HiuGaai, HiuMaan, WanLung. Run
+    `--list-voices` for the current list. That same command is the health probe, so it
+    stays non-generative: it proves the package is installed and the endpoint answers
+    without synthesizing a sample or spending anything.
+  example: |
+    # English, sentence granularity, straight from the CLI
+    edge-tts -v en-US-JennyNeural --rate=-10% \
+      -t "atmosphere. hydrosphere. carbon dioxide." \
+      --write-media en.mp3 --write-subtitles en.srt
+    # en.mp3 : MP3 / MPEG-2 Layer III / 24000 Hz / 48 kbps / mono
+    # en.srt : SRT text, one cue per sentence
+
+    # Chinese, sentence granularity
+    edge-tts -v zh-CN-YunyangNeural --rate=-10% \
+      -t "大气层、水圈和岩石圈共同构成地球的表面。" \
+      --write-media zh.mp3 --write-subtitles zh.srt
+
+    # Word granularity, either language, needs the library.
+    # python3 with edge-tts importable
+    python3 - <<'PY'
+    import asyncio, edge_tts
+
+    async def speak(text, voice, media, rate="-10%"):
+        communicate = edge_tts.Communicate(text, voice, rate=rate, boundary="WordBoundary")
+        audio = bytearray()
+        words = []
+        async for chunk in communicate.stream():
+            if chunk["type"] == "audio":
+                audio += chunk["data"]
+            elif chunk["type"] == "WordBoundary":
+                words.append((chunk["offset"] / 1e7,
+                              (chunk["offset"] + chunk["duration"]) / 1e7,
+                              chunk["text"]))
+        open(media, "wb").write(audio)
+        for start, end, text in words:
+            print(f"{start:.3f} -> {end:.3f}  {text}")
+
+    asyncio.run(speak("atmosphere. hydrosphere. carbon dioxide.", "en-US-JennyNeural", "en-words.mp3"))
+    asyncio.run(speak("上海常住人口有两千四百万。", "zh-CN-XiaoxiaoNeural", "zh-words.mp3"))
+    PY

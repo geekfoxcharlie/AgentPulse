@@ -1,0 +1,6 @@
+schemaVersion: 1
+kind: group-template
+id: text-to-speech
+name: Text to Speech
+description: Local speech-synthesis capabilities exposed through installed command-line tools.
+order: 25

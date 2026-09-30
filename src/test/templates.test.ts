@@ -28,9 +28,9 @@ function materialize(template: ApiTemplate): ApiDefinition {
   return api;
 }
 
-test("built-in templates cover the search catalog, LLM, decision, and Cloudflare image generation", async () => {
+test("built-in templates cover the search catalog, LLM, decision, Cloudflare image generation, and local speech synthesis", async () => {
   const catalog = await loadTemplateCatalog();
-  assert.deepEqual(catalog.groups.map((group) => group.id), ["search", "llm", "decision", "image-generation", "browser", "sites"]);
+  assert.deepEqual(catalog.groups.map((group) => group.id), ["search", "llm", "decision", "image-generation", "text-to-speech", "browser", "sites"]);
   assert.deepEqual(catalog.apis.map((api) => api.id), [
     "brave-search",
     "cloudflare-gpt-image-2",
@@ -45,6 +45,44 @@ test("built-in templates cover the search catalog, LLM, decision, and Cloudflare
     "typesafe",
     "x-api-search-posts"
   ]);
+  assert.deepEqual(catalog.clis.map((cli) => cli.id), ["browser-harness", "edge-tts", "macos-say"]);
+
+  // The speech tools are the only capabilities here that can report when a word starts,
+  // so their templates must keep documenting that difference rather than just their install.
+  // Collapse whitespace first: these notes are hand-wrapped YAML, and an assertion that
+  // depends on where a line happens to break would fail on a pure re-wrap.
+  const flattened = (text: string): string => text.replace(/\s+/g, " ");
+  const edgeTts = catalog.clis.find((cli) => cli.id === "edge-tts");
+  assert.ok(edgeTts);
+  assert.equal(edgeTts.group, "text-to-speech");
+  assert.equal(edgeTts.probe.type, "cli");
+  assert.deepEqual(edgeTts.probe.args, ["--list-voices"]);
+  assert.equal(edgeTts.probe.expectedExit, 0);
+  const edgeNotes = flattened(edgeTts.usage.notes);
+  assert.match(edgeNotes, /MP3, MPEG-2 Layer III, 24000 Hz, 48 kbps, mono/);
+  assert.match(edgeNotes, /The CLI gives sentence granularity only/);
+  assert.match(edgeNotes, /SRT text, not WebVTT/);
+  assert.match(edgeNotes, /the default is `SentenceBoundary`/);
+  assert.match(edgeNotes, /Word granularity needs the Python library, and the `boundary` argument is mandatory/);
+  assert.match(edgeNotes, /boundaries follow Chinese words, not characters/);
+  assert.match(edgeNotes, /'大气层'/);
+  assert.match(edgeNotes, /'上海'/);
+  assert.match(edgeNotes, /'carbon'/);
+  assert.match(edgeNotes, /`--rate=-10%` exits 0, `--rate -10%` exits 2/);
+  assert.match(edgeNotes, /100-nanosecond ticks/);
+
+  const macosSay = catalog.clis.find((cli) => cli.id === "macos-say");
+  assert.ok(macosSay);
+  assert.equal(macosSay.group, "text-to-speech");
+  assert.equal(macosSay.install.method, "builtin");
+  assert.deepEqual(macosSay.probe.args, ["-v", "?"]);
+  const sayNotes = flattened(macosSay.usage.notes);
+  assert.match(sayNotes, /There is no boundary event, no word list, no timestamp, in either language/);
+  assert.match(sayNotes, /one call per word, then measure and concatenate/);
+  assert.match(sayNotes, /not available\. Chinese picks a tone from context/);
+  assert.match(sayNotes, /exits 0 and writes audio byte-identical to the default voice, Samantha/);
+  assert.match(sayNotes, /Tingting zh_CN, Meijia zh_TW, Sinji zh_HK/);
+  assert.match(sayNotes, /Ava and Alex are not installed here/);
 
   const requests = Object.fromEntries(
     catalog.apis.map((template) => [

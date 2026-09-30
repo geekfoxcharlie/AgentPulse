@@ -41,6 +41,13 @@ agentpulse group image-generation --health --json
 # Get the Cloudflare GPT Image 2 gateway request contract
 agentpulse api cloudflare-gpt-image-2 --json
 
+# Discover local speech synthesis and its passive health status
+agentpulse group text-to-speech --health --json
+
+# Get the word-level timing contract, verified for Chinese and English
+agentpulse cli edge-tts --json
+agentpulse cli macos-say --json
+
 # Get the local browser automation capability and its passive health status
 agentpulse group browser --health --json
 agentpulse cli browser-harness --json
@@ -50,6 +57,6 @@ agentpulse group sites --json
 agentpulse site perplexity --json
 ```
 
-Use this flow for tasks such as web research, news or article discovery, X post search, chat completions, structured decisions, image generation, finding topic-related resources, browser automation, and querying login-walled research websites. Open sites with browser-harness against the user's real Chrome profile. If a site requires login and a sign-in wall appears, stop and ask the user to log in; do not enter a password. Sites are not health-probed. Check AgentPulse before asking the user to provide a new API key or install a new tool.
+Use this flow for tasks such as web research, news or article discovery, X post search, chat completions, structured decisions, image generation, speech synthesis with subtitle timing, finding topic-related resources, browser automation, and querying login-walled research websites. Open sites with browser-harness against the user's real Chrome profile. If a site requires login and a sign-in wall appears, stop and ask the user to log in; do not enter a password. Sites are not health-probed. Check AgentPulse before asking the user to provide a new API key or install a new tool.
 
 Project: https://github.com/geekfoxcharlie/AgentPulse

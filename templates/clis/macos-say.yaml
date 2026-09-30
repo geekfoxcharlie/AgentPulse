@@ -1,0 +1,110 @@
+schemaVersion: 1
+kind: cli-template
+id: macos-say
+name: macOS Say
+group: text-to-speech
+description: Offline speech synthesis with the built-in macOS say command, for Chinese and English, with no install and no network.
+enabled: true
+command: say
+docsUrl: https://keith.github.io/xcode-man-pages/say.1.html
+install:
+  method: builtin
+  command: preinstalled at /usr/bin/say on macOS
+probe:
+  type: cli
+  args: ["-v", "?"]
+  expectedExit: 0
+  timeoutMs: 10000
+usage:
+  notes: |
+    Fully offline, nothing to install, no credential, and the right choice when audio
+    must not leave the machine or when edge-tts is unavailable or rate-limited. Quality
+    is clearly below a neural voice and the Chinese inventory is one voice per locale,
+    so use edge-tts first and keep this as the fallback.
+
+    ## What comes back
+
+    Always the same thing: one 16-bit PCM mono WAV, and nothing else. There is no
+    boundary event, no word list, no timestamp, in either language. `--progress` writes a
+    progress bar to the terminal that nothing should parse. Any timing has to be
+    measured from the WAV header, which means one call per segment and a local
+    concatenation.
+
+    Use `--data-format=LEI16@24000` for standard PCM. `--data-format=LEF32@24000` also
+    works but writes IEEE float, format tag 3, which Python's `wave` module refuses to
+    open.
+
+    ## The four combinations
+
+    | Language | Sentence | Word |
+    | --- | --- | --- |
+    | English | one call for the whole line | one call per word, then measure and concatenate |
+    | Chinese | one call for the whole clause | not available |
+
+    ## English
+
+    Sentence, one call for the line:
+
+        say -v Samantha -o en.wav --data-format=LEI16@24000 "atmosphere. hydrosphere."
+        # en.wav : 1.529 s, 1 channel, 24000 Hz, 16-bit
+        # duration has to be read back:
+        # python3 -c "import wave;w=wave.open('en.wav');print(w.getnframes()/w.getframerate())"
+
+    Word, one call per word: say has no per-word mode, so call it once per word and lay
+    the clips out yourself with a fixed gap. Each clip's duration is exact, so the
+    timeline you build is exact.
+
+    ## Chinese
+
+    Sentence, one call for the clause, never for a single word:
+
+        say -v Tingting -o zh.wav --data-format=LEI16@24000 "大气层、水圈和岩石圈共同构成地球的表面。"
+
+    Word, not available. Chinese picks a tone from context, so an isolated word is
+    usually wrong. Verified with Tingting: 行 alone is 0.409 s while 银行 is 0.619 s,
+    行业 is 0.483 s and 行李 is 0.421 s, so the isolated reading matches at most one of
+    the three. Synthesize whole clauses and accept that you only get a duration for the
+    clause, never a timing inside it. This is the gap edge-tts fills.
+
+    ## Traps
+
+    - An unknown voice name is not an error. `say -v ThisVoiceDoesNotExist -o out.wav
+      "atmosphere. hydrosphere."` exits 0 and writes audio byte-identical to the default
+      voice, Samantha. A wrong name looks like success. Take the name from `say -v '?'`
+      and compare a checksum when the voice matters.
+    - Voice names contain spaces and parentheses, for example
+      `Eddy (Chinese (China mainland))`, so always quote them.
+    - `say -v '?'` is not column-aligned. Match the locale token instead of a field
+      number, or a name like Eddy's is swallowed into the wrong field.
+
+    ## Voices
+
+    180 on this machine. English narration: Samantha en_US, Daniel en_GB, Karen en_AU,
+    Moira en_IE, Tessa en_ZA, Rishi en_IN. Chinese narration is one per locale:
+    Tingting zh_CN, Meijia zh_TW, Sinji zh_HK. The other eight zh_CN entries, Eddy, Flo,
+    Grandma, Grandpa, Reed, Rocko, Sandy and Shelley in their
+    "(Chinese (China mainland))" variants, are novelty voices and not narration. Ava
+    and Alex are not installed here. The probe is `say -v '?'`, which lists voices and
+    synthesizes nothing.
+  example: |
+    # List voices before choosing one; the locale is the token to match
+    say -v '?' | grep zh_
+    # Tingting            zh_CN    # 你好，我叫婷婷。
+    # Meijia              zh_TW    # 你好，我叫美佳。
+    # Sinji               zh_HK    # 你好，我叫善怡。
+    # ... 19 zh_ lines, but only those three are narration voices
+
+    # English sentence
+    say -v Samantha -o en.wav --data-format=LEI16@24000 "atmosphere. hydrosphere."
+
+    # English word list: one call per word, duration measured per clip
+    for word in atmosphere hydrosphere lithosphere; do
+      say -v Samantha -o "parts/$word.wav" --data-format=LEI16@24000 "$word"
+    done
+
+    # Chinese sentence, as a clause
+    say -v Tingting -o zh.wav --data-format=LEI16@24000 "大气层、水圈和岩石圈共同构成地球的表面。"
+
+    # Duration has to be measured; say never reports it
+    python3 -c "import wave,sys; w=wave.open(sys.argv[1]); print('%.3fs %dch %dHz' % (w.getnframes()/w.getframerate(), w.getnchannels(), w.getframerate()))" en.wav
+    # 1.529s 1ch 24000Hz
