@@ -103,20 +103,7 @@ CLI 能力 MUST NOT 声明 HTTP 服务地址、凭据引用或环境变量需求
 
 内置 `browser` 目录 MUST 提供 `browser-harness` CLI 模板，其健康检查 MUST 使用被动的 `doctor --json` 子命令，不得启动浏览器或守护进程。
 
-### R1.4：网站能力
-
-除 HTTP API 和本地 CLI 外，系统 MUST 支持把需要在用户真实浏览器中打开的网站登记为 `site` 能力，至少记录：
-
-- 稳定且唯一的 ID（与 API、CLI ID 共用一个命名空间，不得冲突）、名称、描述和所属能力组；
-- 入口 URL 与文档地址；
-- 是否需要登录、如何判断已登录，以及可选的登录 URL；
-- 启用状态和调用说明（通过 `browser-harness` 打开用户本机 Chrome）。
-
-`site` 能力 MUST NOT 声明 HTTP 服务地址、凭据引用、环境变量或健康探测。组健康检查 MUST 把站点列为 `unknown` 或 `disabled`，MUST NOT 打开浏览器、访问该站或检查登录态。登录检查由执行 agent 在任务当时用 browser-harness 完成；若站点需要登录且出现登录墙，agent MUST 停下来请用户登录，不得代填密码。
-
-内置 `sites` 目录 MUST 提供一组研究与创作者网站模板。精确 URL、登录要求和调用示例属于各模板 YAML 的唯一事实来源。
-
-### R1.5：LLM 对话目录
+### R1.4：LLM 对话目录
 
 内置 `llm` 目录 MUST 提供 `deepseek` 模板。调用示例 MUST 使用官方 OpenAI 兼容端点 `POST https://api.deepseek.com/chat/completions`，默认模型 `deepseek-flash`（DeepSeek-V4.1-Flash），并以 `DEEPSEEK_API_KEY` Bearer 认证作为默认安全配置。
 
@@ -126,7 +113,7 @@ CLI 能力 MUST NOT 声明 HTTP 服务地址、凭据引用或环境变量需求
 
 该模板的最小健康检查 MUST 使用不调用模型的 `GET https://opencode.ai/zen/go/v1/usage`，验证 `usage` 字段存在；该端点校验密钥与有效的 Go 订阅，有效密钥但无 Go 订阅时返回 403。调用说明 MUST 写明 Go 面向 coding agent、需发送稳定的 `x-opencode-session` 头，并说明公开的 `GET /models` 不校验凭据。
 
-### R1.6：结构化决策目录
+### R1.5：结构化决策目录
 
 内置 `decision` 目录 MUST 提供 `typesafe` 模板。调用示例 MUST 使用 System One 评估端点 `POST https://api.typesafe.ai/v1/systemone`，默认模型 `jev-latest`（当前 `jev-1.13.0`），并以 `TYPESAFE_API_KEY` Bearer 认证作为默认安全配置。
 
@@ -152,7 +139,7 @@ CLI MUST 是 Agent 使用 AgentPulse 的正式查询入口，并同时提供：
 - 结构稳定、适合 Agent 解析的 JSON 输出；
 - 能力组列表查询；
 - 单个能力组及组内 API 查询；
-- 单个 API、CLI 或 site 的完整调用说明查询。
+- 单个 API 或 CLI 的完整调用说明查询。
 
 AgentPulse 第一阶段 MUST NOT 把正式 HTTP API 或 MCP 作为必要产品接口。
 

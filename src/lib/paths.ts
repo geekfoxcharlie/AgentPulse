@@ -26,7 +26,6 @@ export function resolvePaths(overrides: PathOverrides = {}, env: NodeJS.ProcessE
     groupsDir: join(configDir, "groups"),
     apisDir: join(configDir, "apis"),
     clisDir: join(configDir, "clis"),
-    sitesDir: join(configDir, "sites"),
     stateDir,
     healthCachePath: join(stateDir, "health-cache.json")
   };

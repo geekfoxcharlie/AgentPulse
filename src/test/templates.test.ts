@@ -30,7 +30,7 @@ function materialize(template: ApiTemplate): ApiDefinition {
 
 test("built-in templates cover the search catalog, LLM, decision, Cloudflare image generation, and local speech synthesis", async () => {
   const catalog = await loadTemplateCatalog();
-  assert.deepEqual(catalog.groups.map((group) => group.id), ["search", "llm", "decision", "image-generation", "text-to-speech", "browser", "sites"]);
+  assert.deepEqual(catalog.groups.map((group) => group.id), ["search", "llm", "decision", "image-generation", "text-to-speech", "browser"]);
   assert.deepEqual(catalog.apis.map((api) => api.id), [
     "brave-search",
     "cloudflare-gpt-image-2",

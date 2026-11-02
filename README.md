@@ -2,11 +2,11 @@
 
 AgentPulse is a dynamic API reference for local agents. It centrally records APIs that a person has already prepared, their capability groups, credential locations, calling instructions, and on-demand health snapshots. Locally installed command-line tools can be registered as `cli` capabilities with the same groups, usage notes, and passive health checks.
 
-Agents query and configure AgentPulse through its CLI, then call third-party APIs or local commands directly, or open registered websites in the user's real browser. A local, read-only web page lets people review the same configuration and status.
+Agents query and configure AgentPulse through its CLI, then call third-party APIs or local commands directly. A local, read-only web page lets people review the same configuration and status.
 
 ## Project status
 
-The 0.1 MVP is implemented. Register locally available API keys, tokens, and required account identifiers as environment variables to run real health checks. The built-in catalog includes Exa, Firecrawl Search, Tavily, X API Search Posts, Serper, Brave Search, GitHub Repository Search, skills.sh, DeepSeek (default `deepseek-flash`), OpenCode Go (default `deepseek-v4.1-flash`), TypeSafe Jev (structured decisions, default `jev-latest`), Cloudflare GPT Image 2, the edge-tts and macOS `say` CLIs for speech synthesis with subtitle timing, the browser-harness CLI for driving the local Chrome profile, and research websites opened in that browser. See the [0.1 MVP Spec](.kiro/specs/0.1-mvp/requirements.md), the [Cloudflare image-generation spec](.kiro/specs/0.2-cloudflare-image-generation/requirements.md), the [CLI capabilities spec](.kiro/specs/0.3-cli-capabilities/requirements.md), the [GitHub repository-search spec](.kiro/specs/0.4-github-repository-search/requirements.md), and the [site capabilities spec](.kiro/specs/0.5-site-capabilities/requirements.md) for scope and local setup steps.
+The 0.1 MVP is implemented. Register locally available API keys, tokens, and required account identifiers as environment variables to run real health checks. The built-in catalog includes Exa, Firecrawl Search, Tavily, X API Search Posts, Serper, Brave Search, GitHub Repository Search, skills.sh, DeepSeek (default `deepseek-flash`), OpenCode Go (default `deepseek-v4.1-flash`), TypeSafe Jev (structured decisions, default `jev-latest`), Cloudflare GPT Image 2, the edge-tts and macOS `say` CLIs for speech synthesis with subtitle timing, and the browser-harness CLI for driving the local Chrome profile. See the [0.1 MVP Spec](.kiro/specs/0.1-mvp/requirements.md), the [Cloudflare image-generation spec](.kiro/specs/0.2-cloudflare-image-generation/requirements.md), the [CLI capabilities spec](.kiro/specs/0.3-cli-capabilities/requirements.md), and the [GitHub repository-search spec](.kiro/specs/0.4-github-repository-search/requirements.md) for scope and local setup steps.
 
 ## Quick start
 
@@ -99,14 +99,6 @@ agentpulse cli macos-say --json
 ```
 
 Both templates document the verified audio and timing contract for Chinese and English, because the difference between them decides the architecture. edge-tts is the only one that reports when each word starts: its CLI writes phrase-level SRT cues, and its Python library emits true `WordBoundary` events that split English into words and Chinese into Chinese words rather than characters. macOS `say` writes no timing at all, so a caller who needs timings must measure each clip and concatenate locally, which does not extend to Chinese because Chinese needs context to pick a tone. The `edge-tts` probe is `--list-voices`, which fetches the voice catalogue without synthesizing audio; the `macos-say` probe is `say -v '?'`, which lists installed voices and also synthesizes nothing.
-
-For research websites that are not APIs, no credential is needed. Open them with browser-harness in the user's real Chrome. Sites are not health-probed; if login is required and a sign-in wall appears, stop and ask the user to log in:
-
-```bash
-agentpulse site add --template perplexity
-agentpulse group sites --json
-agentpulse site perplexity --json
-```
 
 `npm link` exposes the current build as the local `agentpulse` command. A person or trusted agent configures the system environment; AgentPulse records only the variable name and configuration location, never accepts, reads, writes, or displays the secret value.
 
