@@ -17,7 +17,7 @@ probe:
   timeoutMs: 15000
 usage:
   notes: |
-    Use for any web task that needs the real browser: logged-in sessions, JavaScript rendering, clicking, typing, scrolling, downloads, and bot-protected pages. A plain HTTP request that can read a public page or API should use curl or a search API instead. Python helpers (page_info, new_tab, click_at_xy, js) are pre-imported into each heredoc script. The health probe runs `doctor --json`, a read-only check of the installed version, daemon liveness, and its CDP connection; it never launches a browser or repairs anything.
+    Use for any web task that needs the real browser: logged-in sessions, JavaScript rendering, clicking, typing, scrolling, downloads, and bot-protected pages. A plain HTTP request that can read a public page or API should use curl or a search API instead. Python helpers (page_info, new_tab, click_at_xy, js) are pre-imported into each heredoc script. Close every tab you opened before finishing — `close_tab()` for the attached tab, `close_tab(tid)` for an id from `new_tab()` or `list_tabs()` — and never close tabs the user already had open. The health probe runs `doctor --json`, a read-only check of the installed version, daemon liveness, and its CDP connection; it never launches a browser or repairs anything.
   example: |
     browser-harness <<'PY'
     ensure_real_tab()
